@@ -1,0 +1,1656 @@
+From c5e63c47b913783eb4b050e479c23038d16fb0de Mon Sep 17 00:00:00 2001
+From: seanneol88 <seanneolebneazer@gmail.com>
+Date: Fri, 13 Nov 2026 06:26:39 +0000
+Subject: [PATCH] feat: add protected parcel intake workflows
+
+---
+ .env.example                                  |   6 +-
+ README.md                                     |   6 +-
+ compose.yaml                                  |   2 +-
+ package-lock.json                             | 519 ++++++++++++++++++
+ package.json                                  |   4 +-
+ .../20261113000100_initial/migration.sql      | 169 ++++++
+ prisma/migrations/migration_lock.toml         |   3 +
+ prisma/schema.prisma                          |  45 +-
+ prisma/seed.ts                                |  77 +++
+ src/app/api/auth/login/route.ts               |  42 ++
+ src/app/api/auth/logout/route.ts              |  15 +
+ src/app/api/auth/session/route.ts             |   7 +
+ src/app/api/staff/parcels/route.ts            |  77 +++
+ src/app/api/student/status/route.ts           |  35 ++
+ src/app/globals.css                           |  41 ++
+ src/app/staff/page.tsx                        |  41 +-
+ src/app/student/page.tsx                      |  88 ++-
+ src/components/staff-workspace.tsx            |  71 +++
+ src/lib/auth.ts                               |  45 ++
+ src/lib/security.ts                           |  35 ++
+ src/lib/staff-parcels.ts                      |  29 +
+ 21 files changed, 1272 insertions(+), 85 deletions(-)
+ create mode 100644 prisma/migrations/20261113000100_initial/migration.sql
+ create mode 100644 prisma/migrations/migration_lock.toml
+ create mode 100644 prisma/seed.ts
+ create mode 100644 src/app/api/auth/login/route.ts
+ create mode 100644 src/app/api/auth/logout/route.ts
+ create mode 100644 src/app/api/auth/session/route.ts
+ create mode 100644 src/app/api/staff/parcels/route.ts
+ create mode 100644 src/app/api/student/status/route.ts
+ create mode 100644 src/components/staff-workspace.tsx
+ create mode 100644 src/lib/auth.ts
+ create mode 100644 src/lib/security.ts
+ create mode 100644 src/lib/staff-parcels.ts
+
+diff --git a/.env.example b/.env.example
+index 91c999d..2bdc910 100644
+--- a/.env.example
++++ b/.env.example
+@@ -1,5 +1,9 @@
+ # Local development only. Never commit a real production database URL.
+ DATABASE_URL="postgresql://siswa_pos:change-me-in-local-env@localhost:5432/siswa_pos?schema=public"
+ 
+-# Change only when the public deployment is ready.
++# Leave localhost for local development; set only at deployment time.
+ NEXT_PUBLIC_APP_URL="http://localhost:3000"
++
++# Required only when seeding the fictional demo accounts. Set locally; never commit values.
++DEMO_ADMIN_PASSWORD=""
++DEMO_STAFF_PASSWORD=""
+diff --git a/README.md b/README.md
+index 1231b6c..1cff329 100644
+--- a/README.md
++++ b/README.md
+@@ -16,8 +16,9 @@ Siswa Pos is a full-stack student-parcel management prototype. It is designed to
+ ## What exists in this first foundation
+ 
+ - Public product landing page
+-- Student demo lookup at `/student` using the fictional tracking number `SPX-2026-0001`
+-- Staff-dashboard interface mock-up at `/staff`
++- Database-backed student lookup at `/student` using a tracking number and final four fictional matric digits
++- Demo staff/admin sign-in, session handling, protected parcel list, and parcel-registration API at `/staff`
++- Seed script for strictly fictional users and records; local passwords are required at runtime and are never committed
+ - Health endpoint at `/api/health`
+ - PostgreSQL/Prisma data model for users, students, parcels, QR claims, collections and audit events
+ - Docker, CI and Kubernetes deployment foundations
+@@ -43,6 +44,7 @@ npm run build
+ npm run db:generate
+ npm run db:migrate
+ npm run db:deploy
++npm run db:seed
+ ```
+ 
+ ## Before a public deployment
+diff --git a/compose.yaml b/compose.yaml
+index 3a028ad..9f576de 100644
+--- a/compose.yaml
++++ b/compose.yaml
+@@ -6,7 +6,7 @@ services:
+       POSTGRES_USER: siswa_pos
+       POSTGRES_PASSWORD: change-me-in-local-env
+     ports:
+-      - "5432:5432"
++      - "127.0.0.1:5432:5432"
+     healthcheck:
+       test: ["CMD-SHELL", "pg_isready -U siswa_pos -d siswa_pos"]
+       interval: 5s
+diff --git a/package-lock.json b/package-lock.json
+index ce75b1d..1b504c1 100644
+--- a/package-lock.json
++++ b/package-lock.json
+@@ -27,6 +27,7 @@
+         "eslint-config-next": "16.4.6",
+         "prisma": "^7.10.1",
+         "tailwindcss": "4.3.3",
++        "tsx": "^4.23.15",
+         "typescript": "^5"
+       }
+     },
+@@ -323,6 +324,448 @@
+         "tslib": "^2.4.0"
+       }
+     },
++    "node_modules/@esbuild/aix-ppc64": {
++      "version": "0.28.2",
++      "resolved": "https://registry.npmjs.org/@esbuild/aix-ppc64/-/aix-ppc64-0.28.2.tgz",
++      "integrity": "sha512-XExcO+dvLKvVtNTibSTBej1NCAbaGhWn9Ww1ZPx80qsahhPFe/8jgWP0IchNe0F3HwkU7n8ejhH8bjonqht8mQ==",
++      "cpu": [
++        "ppc64"
++      ],
++      "dev": true,
++      "license": "MIT",
++      "optional": true,
++      "os": [
++        "aix"
++      ],
++      "engines": {
++        "node": ">=18"
++      }
++    },
++    "node_modules/@esbuild/android-arm": {
++      "version": "0.28.2",
++      "resolved": "https://registry.npmjs.org/@esbuild/android-arm/-/android-arm-0.28.2.tgz",
++      "integrity": "sha512-kXXoiPVVGQcnIYGOeaovwOURpniDBpSq4A03qkQ+BMQqtGG6HYap3xne9C1O1yo4TR3qxlCX5IqqmX6fFo2Lqg==",
++      "cpu": [
++        "arm"
++      ],
++      "dev": true,
++      "license": "MIT",
++      "optional": true,
++      "os": [
++        "android"
++      ],
++      "engines": {
++        "node": ">=18"
++      }
++    },
++    "node_modules/@esbuild/android-arm64": {
++      "version": "0.28.2",
++      "resolved": "https://registry.npmjs.org/@esbuild/android-arm64/-/android-arm64-0.28.2.tgz",
++      "integrity": "sha512-5YfKeeI8qWfBZIX+u2xZC3Zlb3Os/gLS2sbEKM+I4ZOcsWmHS2WLysCcQZDAFRslDUU5Oiq44gf6PYN1vGwG5A==",
++      "cpu": [
++        "arm64"
++      ],
++      "dev": true,
++      "license": "MIT",
++      "optional": true,
++      "os": [
++        "android"
++      ],
++      "engines": {
++        "node": ">=18"
++      }
++    },
++    "node_modules/@esbuild/android-x64": {
++      "version": "0.28.2",
++      "resolved": "https://registry.npmjs.org/@esbuild/android-x64/-/android-x64-0.28.2.tgz",
++      "integrity": "sha512-O387ite7SzUyCcy3JQX4P4bLtEA7bLLkx+esve5JHnyYfNTxcVpXZo9jhdB0lTKN44gztELTdU7nS8Nr16Fs1Q==",
++      "cpu": [
++        "x64"
++      ],
++      "dev": true,
++      "license": "MIT",
++      "optional": true,
++      "os": [
++        "android"
++      ],
++      "engines": {
++        "node": ">=18"
++      }
++    },
++    "node_modules/@esbuild/darwin-arm64": {
++      "version": "0.28.2",
++      "resolved": "https://registry.npmjs.org/@esbuild/darwin-arm64/-/darwin-arm64-0.28.2.tgz",
++      "integrity": "sha512-n4KqkOQrraxHJcgjM1RvwbigfQKIKJVpM7xp+KsxiyUSrRdIXnt73VhrPAx0fV44hgfmIVKjxMN9J1t5jySVkw==",
++      "cpu": [
++        "arm64"
++      ],
++      "dev": true,
++      "license": "MIT",
++      "optional": true,
++      "os": [
++        "darwin"
++      ],
++      "engines": {
++        "node": ">=18"
++      }
++    },
++    "node_modules/@esbuild/darwin-x64": {
++      "version": "0.28.2",
++      "resolved": "https://registry.npmjs.org/@esbuild/darwin-x64/-/darwin-x64-0.28.2.tgz",
++      "integrity": "sha512-uq6suIWYP37qzGddBKPw5QEQPi6HiLGsO7UmkpfyaYNQ3D+rN6w6WfwH+nuqcGXWvawGwxOEroO4YGnFh95azw==",
++      "cpu": [
++        "x64"
++      ],
++      "dev": true,
++      "license": "MIT",
++      "optional": true,
++      "os": [
++        "darwin"
++      ],
++      "engines": {
++        "node": ">=18"
++      }
++    },
++    "node_modules/@esbuild/freebsd-arm64": {
++      "version": "0.28.2",
++      "resolved": "https://registry.npmjs.org/@esbuild/freebsd-arm64/-/freebsd-arm64-0.28.2.tgz",
++      "integrity": "sha512-n+I0BTSRIoy+d6RPKnEVwql5UwBJolytvY4mAOIEJorKlqgPII8ix6slVVrfZ5Tnj7glIZvloylbB/EJPMWEXw==",
++      "cpu": [
++        "arm64"
++      ],
++      "dev": true,
++      "license": "MIT",
++      "optional": true,
++      "os": [
++        "freebsd"
++      ],
++      "engines": {
++        "node": ">=18"
++      }
++    },
++    "node_modules/@esbuild/freebsd-x64": {
++      "version": "0.28.2",
++      "resolved": "https://registry.npmjs.org/@esbuild/freebsd-x64/-/freebsd-x64-0.28.2.tgz",
++      "integrity": "sha512-78XJTJkvPs0kz2w61301PJjXl4g7q3JqiYMZ/M/yVI73EHBrCRTgkhu9oqG7vPqq+a/yadEW8aD+agKlk5xrmg==",
++      "cpu": [
++        "x64"
++      ],
++      "dev": true,
++      "license": "MIT",
++      "optional": true,
++      "os": [
++        "freebsd"
++      ],
++      "engines": {
++        "node": ">=18"
++      }
++    },
++    "node_modules/@esbuild/linux-arm": {
++      "version": "0.28.2",
++      "resolved": "https://registry.npmjs.org/@esbuild/linux-arm/-/linux-arm-0.28.2.tgz",
++      "integrity": "sha512-XlDnu2q5yoqems+xay6wSAcg9DDD7K9RLKZEBOMZm3ckNpJBvOX20tSfby8KfrrhINDyv9V2YVZKY/SpoGJI8w==",
++      "cpu": [
++        "arm"
++      ],
++      "dev": true,
++      "license": "MIT",
++      "optional": true,
++      "os": [
++        "linux"
++      ],
++      "engines": {
++        "node": ">=18"
++      }
++    },
++    "node_modules/@esbuild/linux-arm64": {
++      "version": "0.28.2",
++      "resolved": "https://registry.npmjs.org/@esbuild/linux-arm64/-/linux-arm64-0.28.2.tgz",
++      "integrity": "sha512-pW4AC0P3it8c7do9MVM4p51FzHzdM/TZrerurgRcHJ2WTa1VQ1CIq18xncfpBJw4ojkiZZrKW2yIBWBP92j6Ug==",
++      "cpu": [
++        "arm64"
++      ],
++      "dev": true,
++      "license": "MIT",
++      "optional": true,
++      "os": [
++        "linux"
++      ],
++      "engines": {
++        "node": ">=18"
++      }
++    },
++    "node_modules/@esbuild/linux-ia32": {
++      "version": "0.28.2",
++      "resolved": "https://registry.npmjs.org/@esbuild/linux-ia32/-/linux-ia32-0.28.2.tgz",
++      "integrity": "sha512-CYbnj78HsIeA+DhgUKgFCfvNsTHFhMMrinUrMZpDXJXKN8T3XViTZ/+wtHeVxEWY8ewSzTFN+nRmSwO2tZaLUQ==",
++      "cpu": [
++        "ia32"
++      ],
++      "dev": true,
++      "license": "MIT",
++      "optional": true,
++      "os": [
++        "linux"
++      ],
++      "engines": {
++        "node": ">=18"
++      }
++    },
++    "node_modules/@esbuild/linux-loong64": {
++      "version": "0.28.2",
++      "resolved": "https://registry.npmjs.org/@esbuild/linux-loong64/-/linux-loong64-0.28.2.tgz",
++      "integrity": "sha512-buwkd8nsph4R+ajRvw0qM5Hja/TXQow3ptzWO2EbG/cqcIkHloRrdlBtQlshyYGTNFvfkfJ5tpPLVkY4DtsPfQ==",
++      "cpu": [
++        "loong64"
++      ],
++      "dev": true,
++      "license": "MIT",
++      "optional": true,
++      "os": [
++        "linux"
++      ],
++      "engines": {
++        "node": ">=18"
++      }
++    },
++    "node_modules/@esbuild/linux-mips64el": {
++      "version": "0.28.2",
++      "resolved": "https://registry.npmjs.org/@esbuild/linux-mips64el/-/linux-mips64el-0.28.2.tgz",
++      "integrity": "sha512-ZVykbDyk7519VwiNb9Lcj9m8XM6v5V9uKPvrEMkkEedVewf+0itkhahp4HDpgERXhwLRpWFypsGbG/J8s0QjJA==",
++      "cpu": [
++        "mips64el"
++      ],
++      "dev": true,
++      "license": "MIT",
++      "optional": true,
++      "os": [
++        "linux"
++      ],
++      "engines": {
++        "node": ">=18"
++      }
++    },
++    "node_modules/@esbuild/linux-ppc64": {
++      "version": "0.28.2",
++      "resolved": "https://registry.npmjs.org/@esbuild/linux-ppc64/-/linux-ppc64-0.28.2.tgz",
++      "integrity": "sha512-CAXl+Dtd9UUuJd8pKKdwh6MLm3MUMiqMPmhZ3tTSXPqfyQ3vDl6R5hZdZ/kYojK4ofXtdfSv1tFq8XzWx3heNQ==",
++      "cpu": [
++        "ppc64"
++      ],
++      "dev": true,
++      "license": "MIT",
++      "optional": true,
++      "os": [
++        "linux"
++      ],
++      "engines": {
++        "node": ">=18"
++      }
++    },
++    "node_modules/@esbuild/linux-riscv64": {
++      "version": "0.28.2",
++      "resolved": "https://registry.npmjs.org/@esbuild/linux-riscv64/-/linux-riscv64-0.28.2.tgz",
++      "integrity": "sha512-GeXCej4IQtU1B+QlDV8W/RRvbzI3O/Stss+/bCXv4lZls5WGRtu2a+3JkA3i4qIUlMXpcHebWpF8AkJhATowuA==",
++      "cpu": [
++        "riscv64"
++      ],
++      "dev": true,
++      "license": "MIT",
++      "optional": true,
++      "os": [
++        "linux"
++      ],
++      "engines": {
++        "node": ">=18"
++      }
++    },
++    "node_modules/@esbuild/linux-s390x": {
++      "version": "0.28.2",
++      "resolved": "https://registry.npmjs.org/@esbuild/linux-s390x/-/linux-s390x-0.28.2.tgz",
++      "integrity": "sha512-3H1weTYZPxt/WOhByszQZybS9w5lKzUn1FDMsgEChbHWQwHYQQRfBxgCcZvPhjHfKyJjIievvMmEUawJrdY9Dg==",
++      "cpu": [
++        "s390x"
++      ],
++      "dev": true,
++      "license": "MIT",
++      "optional": true,
++      "os": [
++        "linux"
++      ],
++      "engines": {
++        "node": ">=18"
++      }
++    },
++    "node_modules/@esbuild/linux-x64": {
++      "version": "0.28.2",
++      "resolved": "https://registry.npmjs.org/@esbuild/linux-x64/-/linux-x64-0.28.2.tgz",
++      "integrity": "sha512-4xTZr1FUmSoQW4XIWmit3tzQrUTZM+N3P0XV8xROKYF50XfI7xeO90+1bZvNwxIufQ9hDQVRJH5YhgPVF8A/HQ==",
++      "cpu": [
++        "x64"
++      ],
++      "dev": true,
++      "license": "MIT",
++      "optional": true,
++      "os": [
++        "linux"
++      ],
++      "engines": {
++        "node": ">=18"
++      }
++    },
++    "node_modules/@esbuild/netbsd-arm64": {
++      "version": "0.28.2",
++      "resolved": "https://registry.npmjs.org/@esbuild/netbsd-arm64/-/netbsd-arm64-0.28.2.tgz",
++      "integrity": "sha512-sSATRjPeDBg3pdgHoQfoYBob11Kk1FGa9lui5RIHZCoCkJa9QKlvl3/vKz2usCmYYjs7ymJR/2Nnsqe+Hjt5nw==",
++      "cpu": [
++        "arm64"
++      ],
++      "dev": true,
++      "license": "MIT",
++      "optional": true,
++      "os": [
++        "netbsd"
++      ],
++      "engines": {
++        "node": ">=18"
++      }
++    },
++    "node_modules/@esbuild/netbsd-x64": {
++      "version": "0.28.2",
++      "resolved": "https://registry.npmjs.org/@esbuild/netbsd-x64/-/netbsd-x64-0.28.2.tgz",
++      "integrity": "sha512-lqnzCV+mM0gIADaKihiCg6ifgfU2L3h5E33rNQBN1Y4MaVGnzryzmvvf7UHxprpQdE8hpqLolJ9Rl+SkIRDpyw==",
++      "cpu": [
++        "x64"
++      ],
++      "dev": true,
++      "license": "MIT",
++      "optional": true,
++      "os": [
++        "netbsd"
++      ],
++      "engines": {
++        "node": ">=18"
++      }
++    },
++    "node_modules/@esbuild/openbsd-arm64": {
++      "version": "0.28.2",
++      "resolved": "https://registry.npmjs.org/@esbuild/openbsd-arm64/-/openbsd-arm64-0.28.2.tgz",
++      "integrity": "sha512-AL2qJILH7lNjrDmCQDvdxMfAUIv8KMNZOvrwAQ8i8//ntL9FflhOyMJ8OZSMBb8/AWXe3/5v5S20y3zCoZWKoQ==",
++      "cpu": [
++        "arm64"
++      ],
++      "dev": true,
++      "license": "MIT",
++      "optional": true,
++      "os": [
++        "openbsd"
++      ],
++      "engines": {
++        "node": ">=18"
++      }
++    },
++    "node_modules/@esbuild/openbsd-x64": {
++      "version": "0.28.2",
++      "resolved": "https://registry.npmjs.org/@esbuild/openbsd-x64/-/openbsd-x64-0.28.2.tgz",
++      "integrity": "sha512-QtiuPytchRyC4rwUKhexJdQKvDuZ6hWloi3igqPQNUJCS1/v9EiO3UTOXR6A3FoMo4fnAKbWJdqaIwhOzh8qEw==",
++      "cpu": [
++        "x64"
++      ],
++      "dev": true,
++      "license": "MIT",
++      "optional": true,
++      "os": [
++        "openbsd"
++      ],
++      "engines": {
++        "node": ">=18"
++      }
++    },
++    "node_modules/@esbuild/openharmony-arm64": {
++      "version": "0.28.2",
++      "resolved": "https://registry.npmjs.org/@esbuild/openharmony-arm64/-/openharmony-arm64-0.28.2.tgz",
++      "integrity": "sha512-WkhYDmpTjLvGlScA1rwjRUmhl4k8oXR3cIbtqWmELgU/dFeHHlEllxDvdWcNJV9rbzCexB5vz8gtNewWLgCT7Q==",
++      "cpu": [
++        "arm64"
++      ],
++      "dev": true,
++      "license": "MIT",
++      "optional": true,
++      "os": [
++        "openharmony"
++      ],
++      "engines": {
++        "node": ">=18"
++      }
++    },
++    "node_modules/@esbuild/sunos-x64": {
++      "version": "0.28.2",
++      "resolved": "https://registry.npmjs.org/@esbuild/sunos-x64/-/sunos-x64-0.28.2.tgz",
++      "integrity": "sha512-GPMSkTOtMnv2U2F8gxe4Io6qmVs+YKyp832Etqqxr0hFngmXQ3rzwytelm3GIn7T4VviRUlf3sOgBOiTdvaf7g==",
++      "cpu": [
++        "x64"
++      ],
++      "dev": true,
++      "license": "MIT",
++      "optional": true,
++      "os": [
++        "sunos"
++      ],
++      "engines": {
++        "node": ">=18"
++      }
++    },
++    "node_modules/@esbuild/win32-arm64": {
++      "version": "0.28.2",
++      "resolved": "https://registry.npmjs.org/@esbuild/win32-arm64/-/win32-arm64-0.28.2.tgz",
++      "integrity": "sha512-PIhhEkE9uPBleRBrQEJpUn7MBnibZzbGzYWPmY3x+YoVg/95zbjB4CxPPOQ8l5tYYM4mMaCthF8/1DIfBQQyWQ==",
++      "cpu": [
++        "arm64"
++      ],
++      "dev": true,
++      "license": "MIT",
++      "optional": true,
++      "os": [
++        "win32"
++      ],
++      "engines": {
++        "node": ">=18"
++      }
++    },
++    "node_modules/@esbuild/win32-ia32": {
++      "version": "0.28.2",
++      "resolved": "https://registry.npmjs.org/@esbuild/win32-ia32/-/win32-ia32-0.28.2.tgz",
++      "integrity": "sha512-YmJbfTlvU7Sdn9BB+4PRES4oB6pxgS37MAONj+hBr/cpXS1aBPKXxNnDbu+QCWPj0o9dgyxeq79g6c5P8KeuYA==",
++      "cpu": [
++        "ia32"
++      ],
++      "dev": true,
++      "license": "MIT",
++      "optional": true,
++      "os": [
++        "win32"
++      ],
++      "engines": {
++        "node": ">=18"
++      }
++    },
++    "node_modules/@esbuild/win32-x64": {
++      "version": "0.28.2",
++      "resolved": "https://registry.npmjs.org/@esbuild/win32-x64/-/win32-x64-0.28.2.tgz",
++      "integrity": "sha512-5ebpxr3nWMzrL/rnUI755Jkuee0bHL/Gq0WTF9lvcpv73wAp5eu8MfBUgWK9bhWvZjj7yX8etf/8tI8Ney695g==",
++      "cpu": [
++        "x64"
++      ],
++      "dev": true,
++      "license": "MIT",
++      "optional": true,
++      "os": [
++        "win32"
++      ],
++      "engines": {
++        "node": ">=18"
++      }
++    },
+     "node_modules/@eslint-community/eslint-utils": {
+       "version": "4.10.1",
+       "resolved": "https://registry.npmjs.org/@eslint-community/eslint-utils/-/eslint-utils-4.10.1.tgz",
+@@ -4139,6 +4582,48 @@
+         "url": "https://github.com/sponsors/ljharb"
+       }
+     },
++    "node_modules/esbuild": {
++      "version": "0.28.2",
++      "resolved": "https://registry.npmjs.org/esbuild/-/esbuild-0.28.2.tgz",
++      "integrity": "sha512-HKVLS8dvII+xoKW9kmqxbRKrnWEXfJJr/FZhhJmiqIB0e053QNYFqOBouTMO/k5sID4MvCiUCvv8b9M4h32wIA==",
++      "dev": true,
++      "hasInstallScript": true,
++      "license": "MIT",
++      "bin": {
++        "esbuild": "bin/esbuild"
++      },
++      "engines": {
++        "node": ">=18"
++      },
++      "optionalDependencies": {
++        "@esbuild/aix-ppc64": "0.28.2",
++        "@esbuild/android-arm": "0.28.2",
++        "@esbuild/android-arm64": "0.28.2",
++        "@esbuild/android-x64": "0.28.2",
++        "@esbuild/darwin-arm64": "0.28.2",
++        "@esbuild/darwin-x64": "0.28.2",
++        "@esbuild/freebsd-arm64": "0.28.2",
++        "@esbuild/freebsd-x64": "0.28.2",
++        "@esbuild/linux-arm": "0.28.2",
++        "@esbuild/linux-arm64": "0.28.2",
++        "@esbuild/linux-ia32": "0.28.2",
++        "@esbuild/linux-loong64": "0.28.2",
++        "@esbuild/linux-mips64el": "0.28.2",
++        "@esbuild/linux-ppc64": "0.28.2",
++        "@esbuild/linux-riscv64": "0.28.2",
++        "@esbuild/linux-s390x": "0.28.2",
++        "@esbuild/linux-x64": "0.28.2",
++        "@esbuild/netbsd-arm64": "0.28.2",
++        "@esbuild/netbsd-x64": "0.28.2",
++        "@esbuild/openbsd-arm64": "0.28.2",
++        "@esbuild/openbsd-x64": "0.28.2",
++        "@esbuild/openharmony-arm64": "0.28.2",
++        "@esbuild/sunos-x64": "0.28.2",
++        "@esbuild/win32-arm64": "0.28.2",
++        "@esbuild/win32-ia32": "0.28.2",
++        "@esbuild/win32-x64": "0.28.2"
++      }
++    },
+     "node_modules/escalade": {
+       "version": "3.2.0",
+       "resolved": "https://registry.npmjs.org/escalade/-/escalade-3.2.0.tgz",
+@@ -4806,6 +5291,21 @@
+         "url": "https://github.com/sponsors/isaacs"
+       }
+     },
++    "node_modules/fsevents": {
++      "version": "2.3.3",
++      "resolved": "https://registry.npmjs.org/fsevents/-/fsevents-2.3.3.tgz",
++      "integrity": "sha512-5xoDfX+fL7faATnagmWPpbFtwh/R77WmMMqqHGS65C3vvB0YHrgF+B1YmZ3441tMj5n63k0212XNoJwzlhffQw==",
++      "dev": true,
++      "hasInstallScript": true,
++      "license": "MIT",
++      "optional": true,
++      "os": [
++        "darwin"
++      ],
++      "engines": {
++        "node": "^8.16.0 || ^10.6.0 || >=11.0.0"
++      }
++    },
+     "node_modules/function-bind": {
+       "version": "1.1.2",
+       "resolved": "https://registry.npmjs.org/function-bind/-/function-bind-1.1.2.tgz",
+@@ -7938,6 +8438,25 @@
+       "integrity": "sha512-a4Ux9VKuIMHsOS7ENbEq6hK2ZGYIT27Rtl0E4eD9KqwxhKiQeMZE/9xb3IdYwWaSOyIBQLExhQgXDTYoiCxnWA==",
+       "license": "0BSD"
+     },
++    "node_modules/tsx": {
++      "version": "4.23.15",
++      "resolved": "https://registry.npmjs.org/tsx/-/tsx-4.23.15.tgz",
++      "integrity": "sha512-Yiex1Ovn8z2xPpOWckIiysV1SSyRMY9BkLF++q0yKiDxCqRhosKfMg3janKkiLBwZ5c/YryloKwGZcrEmtwxKw==",
++      "dev": true,
++      "license": "MIT",
++      "dependencies": {
++        "esbuild": "~0.28.0"
++      },
++      "bin": {
++        "tsx": "dist/cli.mjs"
++      },
++      "engines": {
++        "node": ">=18.0.0"
++      },
++      "optionalDependencies": {
++        "fsevents": "~2.3.3"
++      }
++    },
+     "node_modules/type-check": {
+       "version": "0.4.0",
+       "resolved": "https://registry.npmjs.org/type-check/-/type-check-0.4.0.tgz",
+diff --git a/package.json b/package.json
+index f298aae..d1c530d 100644
+--- a/package.json
++++ b/package.json
+@@ -10,7 +10,8 @@
+     "db:generate": "prisma generate --config prisma7.config.ts",
+     "db:migrate": "prisma migrate dev --config prisma7.config.ts",
+     "db:deploy": "prisma migrate deploy --config prisma7.config.ts",
+-    "check": "npm run lint && npm run build"
++    "check": "npm run lint && npm run build",
++    "db:seed": "tsx prisma/seed.ts"
+   },
+   "dependencies": {
+     "@prisma/adapter-pg": "^7.10.1",
+@@ -32,6 +33,7 @@
+     "eslint-config-next": "16.4.6",
+     "prisma": "^7.10.1",
+     "tailwindcss": "4.3.3",
++    "tsx": "^4.23.15",
+     "typescript": "^5"
+   }
+ }
+diff --git a/prisma/migrations/20261113000100_initial/migration.sql b/prisma/migrations/20261113000100_initial/migration.sql
+new file mode 100644
+index 0000000..89ea0a1
+--- /dev/null
++++ b/prisma/migrations/20261113000100_initial/migration.sql
+@@ -0,0 +1,169 @@
++-- CreateSchema
++CREATE SCHEMA IF NOT EXISTS "public";
++
++-- CreateEnum
++CREATE TYPE "Role" AS ENUM ('ADMIN', 'STAFF');
++
++-- CreateEnum
++CREATE TYPE "ParcelStatus" AS ENUM ('PROCESSING', 'READY', 'COLLECTED', 'EXCEPTION', 'UNCLAIMED');
++
++-- CreateEnum
++CREATE TYPE "ParcelEventType" AS ENUM ('REGISTERED', 'STATUS_CHANGED', 'CLAIM_ISSUED', 'CLAIM_REGENERATED', 'COLLECTED', 'EXCEPTION_RECORDED', 'NOTE_ADDED');
++
++-- CreateTable
++CREATE TABLE "User" (
++    "id" TEXT NOT NULL,
++    "email" TEXT NOT NULL,
++    "displayName" TEXT NOT NULL,
++    "passwordHash" TEXT NOT NULL,
++    "role" "Role" NOT NULL DEFAULT 'STAFF',
++    "active" BOOLEAN NOT NULL DEFAULT true,
++    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
++    "updatedAt" TIMESTAMP(3) NOT NULL,
++
++    CONSTRAINT "User_pkey" PRIMARY KEY ("id")
++);
++
++-- CreateTable
++CREATE TABLE "Session" (
++    "id" TEXT NOT NULL,
++    "tokenHash" TEXT NOT NULL,
++    "expiresAt" TIMESTAMP(3) NOT NULL,
++    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
++    "userId" TEXT NOT NULL,
++
++    CONSTRAINT "Session_pkey" PRIMARY KEY ("id")
++);
++
++-- CreateTable
++CREATE TABLE "Student" (
++    "id" TEXT NOT NULL,
++    "matricNo" TEXT NOT NULL,
++    "displayName" TEXT NOT NULL,
++    "college" TEXT,
++    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
++    "updatedAt" TIMESTAMP(3) NOT NULL,
++
++    CONSTRAINT "Student_pkey" PRIMARY KEY ("id")
++);
++
++-- CreateTable
++CREATE TABLE "Parcel" (
++    "id" TEXT NOT NULL,
++    "trackingNo" TEXT NOT NULL,
++    "courier" TEXT NOT NULL,
++    "status" "ParcelStatus" NOT NULL DEFAULT 'PROCESSING',
++    "receivedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
++    "conditionNote" TEXT,
++    "staffNote" TEXT,
++    "studentId" TEXT NOT NULL,
++    "registeredById" TEXT NOT NULL,
++    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
++    "updatedAt" TIMESTAMP(3) NOT NULL,
++
++    CONSTRAINT "Parcel_pkey" PRIMARY KEY ("id")
++);
++
++-- CreateTable
++CREATE TABLE "ClaimToken" (
++    "id" TEXT NOT NULL,
++    "tokenHash" TEXT NOT NULL,
++    "issuedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
++    "expiresAt" TIMESTAMP(3) NOT NULL,
++    "revokedAt" TIMESTAMP(3),
++    "parcelId" TEXT NOT NULL,
++
++    CONSTRAINT "ClaimToken_pkey" PRIMARY KEY ("id")
++);
++
++-- CreateTable
++CREATE TABLE "Collection" (
++    "id" TEXT NOT NULL,
++    "parcelId" TEXT NOT NULL,
++    "collectedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
++    "collectedById" TEXT NOT NULL,
++    "verifiedStudentId" TEXT NOT NULL,
++    "claimTokenId" TEXT,
++    "note" TEXT,
++
++    CONSTRAINT "Collection_pkey" PRIMARY KEY ("id")
++);
++
++-- CreateTable
++CREATE TABLE "ParcelEvent" (
++    "id" TEXT NOT NULL,
++    "parcelId" TEXT NOT NULL,
++    "actorId" TEXT,
++    "eventType" "ParcelEventType" NOT NULL,
++    "occurredAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
++    "notes" TEXT,
++
++    CONSTRAINT "ParcelEvent_pkey" PRIMARY KEY ("id")
++);
++
++-- CreateIndex
++CREATE UNIQUE INDEX "User_email_key" ON "User"("email");
++
++-- CreateIndex
++CREATE UNIQUE INDEX "Session_tokenHash_key" ON "Session"("tokenHash");
++
++-- CreateIndex
++CREATE INDEX "Session_userId_expiresAt_idx" ON "Session"("userId", "expiresAt");
++
++-- CreateIndex
++CREATE UNIQUE INDEX "Student_matricNo_key" ON "Student"("matricNo");
++
++-- CreateIndex
++CREATE UNIQUE INDEX "Parcel_trackingNo_key" ON "Parcel"("trackingNo");
++
++-- CreateIndex
++CREATE INDEX "Parcel_studentId_status_idx" ON "Parcel"("studentId", "status");
++
++-- CreateIndex
++CREATE INDEX "Parcel_status_receivedAt_idx" ON "Parcel"("status", "receivedAt");
++
++-- CreateIndex
++CREATE UNIQUE INDEX "ClaimToken_tokenHash_key" ON "ClaimToken"("tokenHash");
++
++-- CreateIndex
++CREATE INDEX "ClaimToken_parcelId_expiresAt_idx" ON "ClaimToken"("parcelId", "expiresAt");
++
++-- CreateIndex
++CREATE UNIQUE INDEX "Collection_parcelId_key" ON "Collection"("parcelId");
++
++-- CreateIndex
++CREATE UNIQUE INDEX "Collection_claimTokenId_key" ON "Collection"("claimTokenId");
++
++-- CreateIndex
++CREATE INDEX "ParcelEvent_parcelId_occurredAt_idx" ON "ParcelEvent"("parcelId", "occurredAt");
++
++-- AddForeignKey
++ALTER TABLE "Session" ADD CONSTRAINT "Session_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
++
++-- AddForeignKey
++ALTER TABLE "Parcel" ADD CONSTRAINT "Parcel_studentId_fkey" FOREIGN KEY ("studentId") REFERENCES "Student"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
++
++-- AddForeignKey
++ALTER TABLE "Parcel" ADD CONSTRAINT "Parcel_registeredById_fkey" FOREIGN KEY ("registeredById") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
++
++-- AddForeignKey
++ALTER TABLE "ClaimToken" ADD CONSTRAINT "ClaimToken_parcelId_fkey" FOREIGN KEY ("parcelId") REFERENCES "Parcel"("id") ON DELETE CASCADE ON UPDATE CASCADE;
++
++-- AddForeignKey
++ALTER TABLE "Collection" ADD CONSTRAINT "Collection_parcelId_fkey" FOREIGN KEY ("parcelId") REFERENCES "Parcel"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
++
++-- AddForeignKey
++ALTER TABLE "Collection" ADD CONSTRAINT "Collection_collectedById_fkey" FOREIGN KEY ("collectedById") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
++
++-- AddForeignKey
++ALTER TABLE "Collection" ADD CONSTRAINT "Collection_verifiedStudentId_fkey" FOREIGN KEY ("verifiedStudentId") REFERENCES "Student"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
++
++-- AddForeignKey
++ALTER TABLE "Collection" ADD CONSTRAINT "Collection_claimTokenId_fkey" FOREIGN KEY ("claimTokenId") REFERENCES "ClaimToken"("id") ON DELETE SET NULL ON UPDATE CASCADE;
++
++-- AddForeignKey
++ALTER TABLE "ParcelEvent" ADD CONSTRAINT "ParcelEvent_parcelId_fkey" FOREIGN KEY ("parcelId") REFERENCES "Parcel"("id") ON DELETE CASCADE ON UPDATE CASCADE;
++
++-- AddForeignKey
++ALTER TABLE "ParcelEvent" ADD CONSTRAINT "ParcelEvent_actorId_fkey" FOREIGN KEY ("actorId") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
++
+diff --git a/prisma/migrations/migration_lock.toml b/prisma/migrations/migration_lock.toml
+new file mode 100644
+index 0000000..17303af
+--- /dev/null
++++ b/prisma/migrations/migration_lock.toml
+@@ -0,0 +1,3 @@
++# Please do not edit this file manually
++# It should be added in your version-control system.
++provider = "postgresql"
+diff --git a/prisma/schema.prisma b/prisma/schema.prisma
+index d5582e7..fc6d9f5 100644
+--- a/prisma/schema.prisma
++++ b/prisma/schema.prisma
+@@ -34,6 +34,7 @@ model User {
+   id                 String        @id @default(uuid())
+   email              String        @unique
+   displayName        String
++  passwordHash       String
+   role               Role          @default(STAFF)
+   active             Boolean       @default(true)
+   createdAt          DateTime      @default(now())
+@@ -41,6 +42,18 @@ model User {
+   registeredParcels  Parcel[]      @relation("RegisteredBy")
+   recordedEvents     ParcelEvent[] @relation("EventActor")
+   completedClaims    Collection[]  @relation("CollectedBy")
++  sessions           Session[]
++}
++
++model Session {
++  id        String   @id @default(uuid())
++  tokenHash String   @unique
++  expiresAt DateTime
++  createdAt DateTime @default(now())
++  userId    String
++  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
++
++  @@index([userId, expiresAt])
+ }
+ 
+ model Student {
+@@ -58,7 +71,7 @@ model Parcel {
+   id             String        @id @default(uuid())
+   trackingNo     String        @unique
+   courier        String
+-  status         ParcelStatus @default(PROCESSING)
++  status         ParcelStatus  @default(PROCESSING)
+   receivedAt     DateTime      @default(now())
+   conditionNote  String?
+   staffNote      String?
+@@ -77,13 +90,13 @@ model Parcel {
+ }
+ 
+ model ClaimToken {
+-  id        String      @id @default(uuid())
+-  tokenHash String      @unique
+-  issuedAt  DateTime    @default(now())
+-  expiresAt DateTime
+-  revokedAt DateTime?
+-  parcelId  String
+-  parcel    Parcel      @relation(fields: [parcelId], references: [id], onDelete: Cascade)
++  id         String      @id @default(uuid())
++  tokenHash  String      @unique
++  issuedAt   DateTime    @default(now())
++  expiresAt  DateTime
++  revokedAt  DateTime?
++  parcelId   String
++  parcel     Parcel      @relation(fields: [parcelId], references: [id], onDelete: Cascade)
+   collection Collection?
+ 
+   @@index([parcelId, expiresAt])
+@@ -104,14 +117,14 @@ model Collection {
+ }
+ 
+ model ParcelEvent {
+-  id          String          @id @default(uuid())
+-  parcelId    String
+-  actorId     String?
+-  eventType   ParcelEventType
+-  occurredAt  DateTime        @default(now())
+-  notes       String?
+-  parcel      Parcel          @relation(fields: [parcelId], references: [id], onDelete: Cascade)
+-  actor       User?           @relation("EventActor", fields: [actorId], references: [id], onDelete: SetNull)
++  id         String          @id @default(uuid())
++  parcelId   String
++  actorId    String?
++  eventType  ParcelEventType
++  occurredAt DateTime        @default(now())
++  notes      String?
++  parcel     Parcel          @relation(fields: [parcelId], references: [id], onDelete: Cascade)
++  actor      User?           @relation("EventActor", fields: [actorId], references: [id], onDelete: SetNull)
+ 
+   @@index([parcelId, occurredAt])
+ }
+diff --git a/prisma/seed.ts b/prisma/seed.ts
+new file mode 100644
+index 0000000..422e9da
+--- /dev/null
++++ b/prisma/seed.ts
+@@ -0,0 +1,77 @@
++import "dotenv/config";
++import { PrismaPg } from "@prisma/adapter-pg";
++import { ParcelEventType, ParcelStatus, PrismaClient, Role } from "../src/generated/prisma/client";
++import { hashPassword } from "../src/lib/security";
++
++const connectionString = process.env.DATABASE_URL;
++const adminPassword = process.env.DEMO_ADMIN_PASSWORD;
++const staffPassword = process.env.DEMO_STAFF_PASSWORD;
++
++if (!connectionString) throw new Error("DATABASE_URL is required.");
++if (!adminPassword || !staffPassword) {
++  throw new Error("Set DEMO_ADMIN_PASSWORD and DEMO_STAFF_PASSWORD locally before seeding demo accounts.");
++}
++
++const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString }) });
++
++async function main() {
++  const [adminHash, staffHash] = await Promise.all([hashPassword(adminPassword!), hashPassword(staffPassword!)]);
++
++  const admin = await prisma.user.upsert({
++    where: { email: "admin@siswapos.test" },
++    update: { displayName: "Demo administrator", passwordHash: adminHash, role: Role.ADMIN, active: true },
++    create: { email: "admin@siswapos.test", displayName: "Demo administrator", passwordHash: adminHash, role: Role.ADMIN },
++  });
++
++  const staff = await prisma.user.upsert({
++    where: { email: "staff@siswapos.test" },
++    update: { displayName: "Demo staff", passwordHash: staffHash, role: Role.STAFF, active: true },
++    create: { email: "staff@siswapos.test", displayName: "Demo staff", passwordHash: staffHash, role: Role.STAFF },
++  });
++
++  const studentOne = await prisma.student.upsert({
++    where: { matricNo: "DEMO2468" },
++    update: { displayName: "Demo student A", college: "Demo College" },
++    create: { matricNo: "DEMO2468", displayName: "Demo student A", college: "Demo College" },
++  });
++  const studentTwo = await prisma.student.upsert({
++    where: { matricNo: "DEMO1357" },
++    update: { displayName: "Demo student B", college: "Demo College" },
++    create: { matricNo: "DEMO1357", displayName: "Demo student B", college: "Demo College" },
++  });
++
++  await prisma.parcel.upsert({
++    where: { trackingNo: "SPX-2026-0001" },
++    update: { courier: "Demo Express", status: ParcelStatus.READY, studentId: studentOne.id, registeredById: admin.id },
++    create: {
++      trackingNo: "SPX-2026-0001",
++      courier: "Demo Express",
++      status: ParcelStatus.READY,
++      studentId: studentOne.id,
++      registeredById: admin.id,
++      events: { create: { actorId: admin.id, eventType: ParcelEventType.REGISTERED, notes: "Fictional seeded parcel." } },
++    },
++  });
++
++  await prisma.parcel.upsert({
++    where: { trackingNo: "SPX-2026-0002" },
++    update: { courier: "Demo Logistics", status: ParcelStatus.PROCESSING, studentId: studentTwo.id, registeredById: staff.id },
++    create: {
++      trackingNo: "SPX-2026-0002",
++      courier: "Demo Logistics",
++      status: ParcelStatus.PROCESSING,
++      studentId: studentTwo.id,
++      registeredById: staff.id,
++      events: { create: { actorId: staff.id, eventType: ParcelEventType.REGISTERED, notes: "Fictional seeded parcel." } },
++    },
++  });
++
++  console.log("Seeded fictional demo users, students, and parcels.");
++}
++
++main()
++  .catch((error) => {
++    console.error(error);
++    process.exitCode = 1;
++  })
++  .finally(async () => prisma.$disconnect());
+diff --git a/src/app/api/auth/login/route.ts b/src/app/api/auth/login/route.ts
+new file mode 100644
+index 0000000..b26dfff
+--- /dev/null
++++ b/src/app/api/auth/login/route.ts
+@@ -0,0 +1,42 @@
++import { NextResponse } from "next/server";
++import { z } from "zod";
++import { SESSION_COOKIE, sessionExpiry } from "@/lib/auth";
++import { prisma } from "@/lib/prisma";
++import { createOpaqueToken, hashToken, verifyPassword } from "@/lib/security";
++
++const loginInput = z.object({
++  email: z.string().trim().email().max(254).transform((value) => value.toLowerCase()),
++  password: z.string().min(1).max(256),
++});
++
++export async function POST(request: Request) {
++  const parsed = loginInput.safeParse(await request.json().catch(() => null));
++  if (!parsed.success) {
++    return NextResponse.json({ message: "Enter a valid email and password." }, { status: 400 });
++  }
++
++  const user = await prisma.user.findUnique({ where: { email: parsed.data.email } });
++  if (!user || !user.active || !(await verifyPassword(parsed.data.password, user.passwordHash))) {
++    return NextResponse.json({ message: "The demo sign-in details are not recognised." }, { status: 401 });
++  }
++
++  const token = createOpaqueToken();
++  const expiresAt = sessionExpiry();
++  await prisma.session.create({
++    data: { userId: user.id, tokenHash: hashToken(token), expiresAt },
++  });
++
++  const response = NextResponse.json({
++    user: { displayName: user.displayName, email: user.email, role: user.role },
++  });
++  response.cookies.set({
++    name: SESSION_COOKIE,
++    value: token,
++    expires: expiresAt,
++    httpOnly: true,
++    sameSite: "lax",
++    secure: process.env.NODE_ENV === "production",
++    path: "/",
++  });
++  return response;
++}
+diff --git a/src/app/api/auth/logout/route.ts b/src/app/api/auth/logout/route.ts
+new file mode 100644
+index 0000000..131661d
+--- /dev/null
++++ b/src/app/api/auth/logout/route.ts
+@@ -0,0 +1,15 @@
++import { NextResponse } from "next/server";
++import { cookies } from "next/headers";
++import { SESSION_COOKIE } from "@/lib/auth";
++import { prisma } from "@/lib/prisma";
++import { hashToken } from "@/lib/security";
++
++export async function POST() {
++  const token = (await cookies()).get(SESSION_COOKIE)?.value;
++  if (token) {
++    await prisma.session.deleteMany({ where: { tokenHash: hashToken(token) } });
++  }
++  const response = NextResponse.json({ ok: true });
++  response.cookies.set({ name: SESSION_COOKIE, value: "", expires: new Date(0), path: "/" });
++  return response;
++}
+diff --git a/src/app/api/auth/session/route.ts b/src/app/api/auth/session/route.ts
+new file mode 100644
+index 0000000..deced5b
+--- /dev/null
++++ b/src/app/api/auth/session/route.ts
+@@ -0,0 +1,7 @@
++import { NextResponse } from "next/server";
++import { getSessionUser } from "@/lib/auth";
++
++export async function GET() {
++  const user = await getSessionUser();
++  return NextResponse.json({ user });
++}
+diff --git a/src/app/api/staff/parcels/route.ts b/src/app/api/staff/parcels/route.ts
+new file mode 100644
+index 0000000..1a92219
+--- /dev/null
++++ b/src/app/api/staff/parcels/route.ts
+@@ -0,0 +1,77 @@
++import { NextResponse } from "next/server";
++import { ParcelEventType, ParcelStatus } from "@/generated/prisma/client";
++import { requireStaff } from "@/lib/auth";
++import { prisma } from "@/lib/prisma";
++import { getRecentStaffParcels } from "@/lib/staff-parcels";
++import { normalizeMatric, normalizeTracking } from "@/lib/security";
++import { z } from "zod";
++
++const parcelInput = z.object({
++  trackingNo: z.string().trim().min(4).max(80),
++  courier: z.string().trim().min(2).max(80),
++  matricNo: z.string().trim().min(4).max(40),
++  studentName: z.string().trim().min(2).max(120),
++  college: z.string().trim().max(120).optional().or(z.literal("")),
++  conditionNote: z.string().trim().max(500).optional().or(z.literal("")),
++});
++
++export async function GET() {
++  const user = await requireStaff();
++  if (!user) return NextResponse.json({ message: "Sign in is required." }, { status: 401 });
++
++  return NextResponse.json({ parcels: await getRecentStaffParcels() });
++}
++
++export async function POST(request: Request) {
++  const user = await requireStaff();
++  if (!user) return NextResponse.json({ message: "Sign in is required." }, { status: 401 });
++
++  const parsed = parcelInput.safeParse(await request.json().catch(() => null));
++  if (!parsed.success) {
++    return NextResponse.json({ message: "Check the parcel and recipient fields, then try again." }, { status: 400 });
++  }
++
++  const trackingNo = normalizeTracking(parsed.data.trackingNo);
++  const existing = await prisma.parcel.findUnique({ where: { trackingNo } });
++  if (existing) {
++    return NextResponse.json({ message: "This tracking number has already been registered." }, { status: 409 });
++  }
++
++  const parcel = await prisma.$transaction(async (tx) => {
++    const student = await tx.student.upsert({
++      where: { matricNo: normalizeMatric(parsed.data.matricNo) },
++      create: {
++        matricNo: normalizeMatric(parsed.data.matricNo),
++        displayName: parsed.data.studentName,
++        college: parsed.data.college || null,
++      },
++      update: {
++        displayName: parsed.data.studentName,
++        college: parsed.data.college || null,
++      },
++    });
++
++    const created = await tx.parcel.create({
++      data: {
++        trackingNo,
++        courier: parsed.data.courier,
++        status: ParcelStatus.PROCESSING,
++        conditionNote: parsed.data.conditionNote || null,
++        studentId: student.id,
++        registeredById: user.id,
++      },
++    });
++
++    await tx.parcelEvent.create({
++      data: {
++        parcelId: created.id,
++        actorId: user.id,
++        eventType: ParcelEventType.REGISTERED,
++        notes: "Parcel registered through the staff demo workflow.",
++      },
++    });
++    return created;
++  });
++
++  return NextResponse.json({ parcel: { id: parcel.id, trackingNo: parcel.trackingNo, status: parcel.status } }, { status: 201 });
++}
+diff --git a/src/app/api/student/status/route.ts b/src/app/api/student/status/route.ts
+new file mode 100644
+index 0000000..36d25d5
+--- /dev/null
++++ b/src/app/api/student/status/route.ts
+@@ -0,0 +1,35 @@
++import { NextResponse } from "next/server";
++import { z } from "zod";
++import { prisma } from "@/lib/prisma";
++import { normalizeTracking } from "@/lib/security";
++
++const lookupInput = z.object({
++  trackingNo: z.string().trim().min(4).max(80),
++  matricSuffix: z.string().trim().regex(/^\d{4}$/),
++});
++
++export async function POST(request: Request) {
++  const parsed = lookupInput.safeParse(await request.json().catch(() => null));
++  if (!parsed.success) {
++    return NextResponse.json({ message: "Enter a tracking number and the last four matric digits." }, { status: 400 });
++  }
++
++  const parcel = await prisma.parcel.findUnique({
++    where: { trackingNo: normalizeTracking(parsed.data.trackingNo) },
++    include: { student: { select: { matricNo: true } } },
++  });
++
++  if (!parcel || !parcel.student.matricNo.endsWith(parsed.data.matricSuffix)) {
++    return NextResponse.json({ found: false }, { status: 404 });
++  }
++
++  return NextResponse.json({
++    found: true,
++    parcel: {
++      trackingNo: parcel.trackingNo,
++      status: parcel.status,
++      receivedAt: parcel.receivedAt.toISOString(),
++      claimAvailable: parcel.status === "READY",
++    },
++  });
++}
+diff --git a/src/app/globals.css b/src/app/globals.css
+index d7411a1..7284e4a 100644
+--- a/src/app/globals.css
++++ b/src/app/globals.css
+@@ -202,3 +202,44 @@ button { cursor: pointer; }
+   .status-pill { margin-left: 49px; }
+   .staff-header { flex-direction: column; }
+ }
++
++.field-grid { display: grid; grid-template-columns: 1.6fr 1fr; gap: 12px; }
++.lookup-form label, .staff-login-card label, .register-form label { display: grid; gap: 8px; color: #435249; font-size: 12px; font-weight: 800; }
++.lookup-form input, .staff-login-card input, .register-form input { width: 100%; min-height: 52px; padding: 0 14px; color: var(--ink); background: #f8faf6; border: 1px solid #cbd6cb; border-radius: 10px; outline: none; font-size: 15px; font-weight: 600; }
++.lookup-form input:focus, .staff-login-card input:focus, .register-form input:focus { border-color: var(--pine); box-shadow: 0 0 0 3px rgba(19,92,67,.12); }
++.lookup-submit { width: 100%; min-height: 54px; margin-top: 13px; color: white; background: var(--pine); border: 0; border-radius: 10px; font-size: 13px; font-weight: 800; }
++.lookup-submit:hover:not(:disabled), .staff-login-card button:hover, .register-form button:hover { background: var(--pine-deep); }
++.lookup-submit:disabled { opacity: .66; cursor: wait; }
++.status-pill.processing { color: #67581a; background: #fff0b7; }
++.status-pill.collected { color: #526259; background: #e7ece7; }
++.status-pill.exception, .status-pill.unclaimed { color: var(--danger); background: #ffe0d9; }
++
++.staff-loading { display: grid; min-height: 100vh; place-items: center; color: var(--pine); background: var(--paper); font-weight: 800; }
++.staff-login-shell { display: grid; grid-template-rows: auto 1fr; min-height: 100vh; padding: 28px clamp(24px, 5vw, 88px); background: linear-gradient(120deg, #f6f8f4 48%, #dff2df 48%); }
++.staff-login-shell > .brand { align-self: start; }
++.staff-login-card { width: min(100%, 450px); align-self: center; justify-self: center; padding: 34px; background: white; border: 1px solid var(--line); border-radius: 24px 24px 4px 24px; box-shadow: 20px 24px 0 rgba(19,92,67,.12); }
++.staff-login-card h1 { margin: 0; font-size: 39px; letter-spacing: -.06em; }
++.staff-login-card > p:not(.eyebrow):not(.login-note) { margin: 14px 0 24px; color: var(--muted); font-size: 14px; line-height: 1.55; }
++.staff-login-card form { display: grid; gap: 14px; }
++.staff-login-card button, .register-form button { min-height: 50px; margin-top: 3px; color: white; background: var(--pine); border: 0; border-radius: 10px; font-size: 13px; font-weight: 800; }
++.login-note { margin: 21px 0 0; color: var(--muted); font-size: 11px; line-height: 1.55; }
++.login-note code { color: var(--pine); font-size: 10px; }
++.form-error, .form-success { margin: 0; padding: 10px 12px; border-radius: 8px; font-size: 12px; line-height: 1.45; }
++.form-error { color: #8c3127; background: #ffe2dd; }
++.form-success { color: #155a41; background: var(--mint); }
++.sign-out { width: 100%; margin-top: 20px; padding: 10px; color: #cde8d2; background: transparent; border: 1px solid rgba(255,255,255,.22); border-radius: 8px; font-size: 12px; font-weight: 700; }
++.sign-out:hover { color: var(--pine-deep); background: var(--leaf); border-color: var(--leaf); }
++.register-panel { margin-top: 30px; padding: 24px; background: #edf5ed; border: 1px solid #c2ddc6; border-radius: 16px 16px 2px 16px; }
++.register-panel h2 { margin: 0; font-size: 21px; letter-spacing: -.04em; }
++.register-panel > div > p { margin: 7px 0 19px; color: #557261; font-size: 12px; }
++.register-form { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
++.register-form label:last-of-type { grid-column: 1 / -1; }
++.register-form button { grid-column: 1 / -1; max-width: 180px; }
++.empty-table { padding: 22px 0 2px; margin: 0; color: var(--muted); font-size: 13px; }
++
++@media (max-width: 700px) {
++  .field-grid, .register-form { grid-template-columns: 1fr; }
++  .register-form label:last-of-type, .register-form button { grid-column: auto; }
++  .staff-login-shell { padding: 24px; background: #f6f8f4; }
++  .staff-login-card { padding: 26px; box-shadow: 10px 14px 0 rgba(19,92,67,.1); }
++}
+diff --git a/src/app/staff/page.tsx b/src/app/staff/page.tsx
+index 6a52d7a..84c6971 100644
+--- a/src/app/staff/page.tsx
++++ b/src/app/staff/page.tsx
+@@ -1,36 +1,9 @@
+-import Link from "next/link";
++import { StaffWorkspace } from "@/components/staff-workspace";
++import { getSessionUser } from "@/lib/auth";
++import { getRecentStaffParcels } from "@/lib/staff-parcels";
+ 
+-const parcels = [
+-  { tracking: "SPX-2026-0001", recipient: "Demo student A", courier: "Demo Express", status: "Ready", received: "Today, 10:14" },
+-  { tracking: "SPX-2026-0002", recipient: "Demo student B", courier: "Demo Logistics", status: "Processing", received: "Today, 09:52" },
+-  { tracking: "SPX-2026-0003", recipient: "Demo student C", courier: "Demo Parcel", status: "Exception", received: "Yesterday, 16:08" },
+-];
+-
+-export default function StaffDemoPage() {
+-  return (
+-    <main className="staff-shell">
+-      <aside className="staff-side">
+-        <Link className="brand" href="/"><span className="mini-box">□</span><span>Siswa <strong>Pos</strong></span></Link>
+-        <div className="staff-user"><span>SE</span><div><strong>Staff demo</strong><small>Training environment</small></div></div>
+-        <nav aria-label="Staff demo navigation"><a className="active" href="#overview">Overview</a><a href="#parcels">Parcels</a><a href="#collections">Collections</a><a href="#reports">Reports</a></nav>
+-        <p className="side-note">Demo UI only. Authentication, authorisation and database workflows are delivered in the next milestone.</p>
+-      </aside>
+-      <section className="staff-content" id="overview">
+-        <header className="staff-header"><div><p className="eyebrow"><span /> Staff operations</p><h1>Good morning, staff demo.</h1></div><button className="register-button">+ Register parcel</button></header>
+-        <div className="metric-grid">
+-          <article><span>Received today</span><strong>18</strong><small>+4 from yesterday</small></article>
+-          <article><span>Ready to collect</span><strong>11</strong><small>5 claims generated</small></article>
+-          <article><span>Collected today</span><strong>7</strong><small>QR-verified releases</small></article>
+-          <article><span>Need follow-up</span><strong>2</strong><small>Exception records</small></article>
+-        </div>
+-        <section className="parcel-table-section" id="parcels">
+-          <div className="table-title"><div><h2>Recent parcels</h2><p>Fictional records for interface development.</p></div><button className="plain-button">View all</button></div>
+-          <div className="parcel-table" role="table" aria-label="Demo parcels">
+-            <div className="table-row table-head" role="row"><span>Tracking number</span><span>Recipient</span><span>Courier</span><span>Status</span><span>Received</span></div>
+-            {parcels.map((parcel) => <div className="table-row" role="row" key={parcel.tracking}><strong>{parcel.tracking}</strong><span>{parcel.recipient}</span><span>{parcel.courier}</span><span className={`status-tag ${parcel.status.toLowerCase()}`}>{parcel.status}</span><span>{parcel.received}</span></div>)}
+-          </div>
+-        </section>
+-      </section>
+-    </main>
+-  );
++export default async function StaffPage() {
++  const user = await getSessionUser();
++  const parcels = user ? await getRecentStaffParcels() : [];
++  return <StaffWorkspace initialUser={user} initialParcels={parcels} />;
+ }
+diff --git a/src/app/student/page.tsx b/src/app/student/page.tsx
+index 3476870..9f6417c 100644
+--- a/src/app/student/page.tsx
++++ b/src/app/student/page.tsx
+@@ -3,17 +3,51 @@
+ import Link from "next/link";
+ import { FormEvent, useState } from "react";
+ 
+-const DEMO_TRACKING = "SPX-2026-0001";
++type LookupResult = {
++  trackingNo: string;
++  status: "PROCESSING" | "READY" | "COLLECTED" | "EXCEPTION" | "UNCLAIMED";
++  receivedAt: string;
++  claimAvailable: boolean;
++};
++
++const statusCopy: Record<LookupResult["status"], string> = {
++  PROCESSING: "Processing",
++  READY: "Ready for collection",
++  COLLECTED: "Collected",
++  EXCEPTION: "Needs staff follow-up",
++  UNCLAIMED: "Awaiting follow-up",
++};
+ 
+ export default function StudentParcelPage() {
+   const [tracking, setTracking] = useState("");
+-  const [searched, setSearched] = useState(false);
+-  const [found, setFound] = useState(false);
++  const [matricSuffix, setMatricSuffix] = useState("");
++  const [result, setResult] = useState<LookupResult | null>(null);
++  const [message, setMessage] = useState("");
++  const [loading, setLoading] = useState(false);
+ 
+-  function checkParcel(event: FormEvent<HTMLFormElement>) {
++  async function checkParcel(event: FormEvent<HTMLFormElement>) {
+     event.preventDefault();
+-    setSearched(true);
+-    setFound(tracking.trim().toUpperCase() === DEMO_TRACKING);
++    setLoading(true);
++    setResult(null);
++    setMessage("");
++
++    try {
++      const response = await fetch("/api/student/status", {
++        method: "POST",
++        headers: { "content-type": "application/json" },
++        body: JSON.stringify({ trackingNo: tracking, matricSuffix }),
++      });
++      const body = await response.json();
++      if (!response.ok || !body.found) {
++        setMessage(body.message || "We could not match those details to a demo parcel.");
++        return;
++      }
++      setResult(body.parcel);
++    } catch {
++      setMessage("The status service is unavailable. Please try again shortly.");
++    } finally {
++      setLoading(false);
++    }
+   }
+ 
+   return (
+@@ -26,41 +60,35 @@ export default function StudentParcelPage() {
+       <section className="lookup-stage">
+         <p className="eyebrow"><span /> Student parcel check</p>
+         <h1>Is your parcel ready<br />for collection?</h1>
+-        <p className="lookup-lede">Enter a tracking number to view its limited collection status.</p>
++        <p className="lookup-lede">Use a tracking number and the final four digits of a matric number to see a limited parcel status.</p>
+ 
+         <form className="lookup-form" onSubmit={checkParcel}>
+-          <label htmlFor="tracking">Tracking number</label>
+-          <div className="lookup-input-row">
+-            <input
+-              id="tracking"
+-              name="tracking"
+-              value={tracking}
+-              onChange={(event) => setTracking(event.target.value)}
+-              placeholder="e.g. SPX-2026-0001"
+-              autoComplete="off"
+-            />
+-            <button type="submit">Check status <span>→</span></button>
++          <div className="field-grid">
++            <label htmlFor="tracking">Tracking number
++              <input id="tracking" name="tracking" value={tracking} onChange={(event) => setTracking(event.target.value)} placeholder="e.g. SPX-2026-0001" autoComplete="off" required />
++            </label>
++            <label htmlFor="matricSuffix">Last 4 matric digits
++              <input id="matricSuffix" name="matricSuffix" value={matricSuffix} onChange={(event) => setMatricSuffix(event.target.value.replace(/\D/g, "").slice(0, 4))} placeholder="e.g. 2468" inputMode="numeric" autoComplete="off" required />
++            </label>
+           </div>
+-          <p className="demo-hint">Try the fictional demo number: <button type="button" onClick={() => setTracking(DEMO_TRACKING)}>{DEMO_TRACKING}</button></p>
++          <button className="lookup-submit" type="submit" disabled={loading}>{loading ? "Checking…" : <>Check status <span>→</span></>}</button>
++          <p className="demo-hint">Fictional demo: <button type="button" onClick={() => { setTracking("SPX-2026-0001"); setMatricSuffix("2468"); }}>SPX-2026-0001 + 2468</button></p>
+         </form>
+ 
+-        {searched && found && (
++        {result && (
+           <article className="result-card success-result" aria-live="polite">
+-            <div className="result-head"><span className="success-icon">✓</span><div><p>Ready for collection</p><h2>{DEMO_TRACKING}</h2></div><span className="status-pill">Ready</span></div>
++            <div className="result-head"><span className="success-icon">✓</span><div><p>Parcel status</p><h2>{result.trackingNo}</h2></div><span className={`status-pill ${result.status.toLowerCase()}`}>{statusCopy[result.status]}</span></div>
+             <div className="result-details">
+-              <div><span>Collection point</span><strong>Demo collection counter</strong></div>
+-              <div><span>Claim QR</span><strong>Generate at collection</strong></div>
+-              <div><span>Claim validity</span><strong>24 hours after issue</strong></div>
++              <div><span>Status</span><strong>{statusCopy[result.status]}</strong></div>
++              <div><span>Recorded</span><strong>{new Intl.DateTimeFormat("en-MY", { dateStyle: "medium", timeStyle: "short" }).format(new Date(result.receivedAt))}</strong></div>
++              <div><span>Claim QR</span><strong>{result.claimAvailable ? "Available after sign-in step" : "Available once ready"}</strong></div>
+             </div>
+-            <p className="result-note">This is fictional prototype data. A production system would require approved institutional processes and authenticated student access.</p>
++            <p className="result-note">Only limited status is shown. This academic prototype uses fictional data and is not an official parcel service.</p>
+           </article>
+         )}
+ 
+-        {searched && !found && (
+-          <article className="result-card missing-result" aria-live="polite">
+-            <span className="missing-icon">?</span>
+-            <div><h2>We could not find that demo parcel.</h2><p>For this prototype, use <strong>{DEMO_TRACKING}</strong>. The production version will validate authorised student access before showing a limited status.</p></div>
+-          </article>
++        {message && (
++          <article className="result-card missing-result" aria-live="polite"><span className="missing-icon">?</span><div><h2>We could not verify that parcel.</h2><p>{message}</p></div></article>
+         )}
+       </section>
+       <footer className="portal-footer">Academic prototype · No real student or parcel data is used</footer>
+diff --git a/src/components/staff-workspace.tsx b/src/components/staff-workspace.tsx
+new file mode 100644
+index 0000000..b5f7c73
+--- /dev/null
++++ b/src/components/staff-workspace.tsx
+@@ -0,0 +1,71 @@
++"use client";
++
++import Link from "next/link";
++import { FormEvent, useState } from "react";
++import type { SessionUser } from "@/lib/auth";
++import type { StaffParcelSummary } from "@/lib/staff-parcels";
++
++const emptyParcel = { trackingNo: "", courier: "", matricNo: "", studentName: "", college: "", conditionNote: "" };
++
++type StaffWorkspaceProps = {
++  initialUser: SessionUser | null;
++  initialParcels: StaffParcelSummary[];
++};
++
++export function StaffWorkspace({ initialUser, initialParcels }: StaffWorkspaceProps) {
++  const [user, setUser] = useState(initialUser);
++  const [parcels, setParcels] = useState(initialParcels);
++  const [loginError, setLoginError] = useState("");
++  const [formMessage, setFormMessage] = useState("");
++  const [showRegister, setShowRegister] = useState(false);
++  const [parcelForm, setParcelForm] = useState(emptyParcel);
++
++  async function loadParcels() {
++    const response = await fetch("/api/staff/parcels");
++    if (response.ok) setParcels((await response.json()).parcels);
++  }
++
++  async function signIn(event: FormEvent<HTMLFormElement>) {
++    event.preventDefault();
++    setLoginError("");
++    const data = new FormData(event.currentTarget);
++    const response = await fetch("/api/auth/login", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ email: data.get("email"), password: data.get("password") }) });
++    const body = await response.json();
++    if (!response.ok) { setLoginError(body.message || "Unable to sign in."); return; }
++    setUser(body.user);
++    await loadParcels();
++  }
++
++  async function signOut() {
++    await fetch("/api/auth/logout", { method: "POST" });
++    setUser(null);
++    setParcels([]);
++    setShowRegister(false);
++  }
++
++  async function registerParcel(event: FormEvent<HTMLFormElement>) {
++    event.preventDefault();
++    setFormMessage("");
++    const response = await fetch("/api/staff/parcels", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(parcelForm) });
++    const body = await response.json();
++    if (!response.ok) { setFormMessage(body.message || "Unable to register the parcel."); return; }
++    setParcelForm(emptyParcel);
++    setFormMessage(`Registered ${body.parcel.trackingNo} as Processing.`);
++    await loadParcels();
++  }
++
++  if (!user) {
++    return <main className="staff-login-shell"><Link className="brand" href="/"><span className="mini-box">□</span><span>Siswa <strong>Pos</strong></span></Link><section className="staff-login-card"><p className="eyebrow"><span /> Staff workspace</p><h1>Sign in to the demo.</h1><p>Fictional staff accounts are created locally during the seed step. No institutional account is used.</p><form onSubmit={signIn}><label>Email<input name="email" type="email" placeholder="staff@siswapos.test" required /></label><label>Password<input name="password" type="password" autoComplete="current-password" required /></label>{loginError && <p className="form-error">{loginError}</p>}<button type="submit">Sign in <span>→</span></button></form><p className="login-note">Demo account emails: <code>admin@siswapos.test</code> or <code>staff@siswapos.test</code>. Passwords are set locally and never committed.</p></section></main>;
++  }
++
++  return (
++    <main className="staff-shell">
++      <aside className="staff-side"><Link className="brand" href="/"><span className="mini-box">□</span><span>Siswa <strong>Pos</strong></span></Link><div className="staff-user"><span>{user.displayName.slice(0, 2).toUpperCase()}</span><div><strong>{user.displayName}</strong><small>{user.role.toLowerCase()} · demo environment</small></div></div><nav aria-label="Staff navigation"><a className="active" href="#overview">Overview</a><a href="#parcels">Parcels</a><a href="#collections">Collections</a><a href="#reports">Reports</a></nav><button className="sign-out" onClick={signOut}>Sign out</button><p className="side-note">Fictional data only. Do not use this prototype for real parcel operations.</p></aside>
++      <section className="staff-content" id="overview"><header className="staff-header"><div><p className="eyebrow"><span /> Staff operations</p><h1>Parcel intake workspace.</h1></div><button className="register-button" onClick={() => setShowRegister((value) => !value)}>{showRegister ? "Close form" : "+ Register parcel"}</button></header>
++        <div className="metric-grid"><article><span>Registered records</span><strong>{parcels.length}</strong><small>Fictional demo records</small></article><article><span>Ready to collect</span><strong>{parcels.filter((parcel) => parcel.status === "READY").length}</strong><small>QR claim is next milestone</small></article><article><span>Processing</span><strong>{parcels.filter((parcel) => parcel.status === "PROCESSING").length}</strong><small>Initial intake workflow</small></article><article><span>Access role</span><strong>{user.role}</strong><small>Session expires after 12 hours</small></article></div>
++        {showRegister && <section className="register-panel"><div><h2>Register a fictional parcel</h2><p>Creates a parcel, a recipient record and an audit event in the demo database.</p></div><form className="register-form" onSubmit={registerParcel}>{Object.entries({ trackingNo: "Tracking number", courier: "Courier", matricNo: "Student matric number", studentName: "Student display name", college: "College (optional)", conditionNote: "Condition / exception note (optional)" }).map(([key, label]) => <label key={key}>{label}<input value={parcelForm[key as keyof typeof parcelForm]} onChange={(event) => setParcelForm({ ...parcelForm, [key]: event.target.value })} required={!key.includes("optional")} /></label>)}<button type="submit">Register parcel</button></form>{formMessage && <p className={formMessage.startsWith("Registered") ? "form-success" : "form-error"}>{formMessage}</p>}</section>}
++        <section className="parcel-table-section" id="parcels"><div className="table-title"><div><h2>Recent parcels</h2><p>Visible only after a valid demo staff session is established.</p></div><button className="plain-button" onClick={() => void loadParcels()}>Refresh</button></div><div className="parcel-table" role="table" aria-label="Recent fictional parcels"><div className="table-row table-head" role="row"><span>Tracking number</span><span>Recipient</span><span>Courier</span><span>Status</span><span>Received</span></div>{parcels.map((parcel) => <div className="table-row" role="row" key={parcel.id}><strong>{parcel.trackingNo}</strong><span>{parcel.student} · •••{parcel.matricSuffix}</span><span>{parcel.courier}</span><span className={`status-tag ${parcel.status.toLowerCase()}`}>{parcel.status}</span><span>{new Intl.DateTimeFormat("en-MY", { dateStyle: "medium", timeStyle: "short" }).format(new Date(parcel.receivedAt))}</span></div>)}{parcels.length === 0 && <p className="empty-table">No demo parcels yet. Seed the database or register a fictional parcel.</p>}</div></section>
++      </section>
++    </main>
++  );
++}
+diff --git a/src/lib/auth.ts b/src/lib/auth.ts
+new file mode 100644
+index 0000000..aa94143
+--- /dev/null
++++ b/src/lib/auth.ts
+@@ -0,0 +1,45 @@
++import { cookies } from "next/headers";
++import { Role } from "@/generated/prisma/client";
++import { prisma } from "@/lib/prisma";
++import { hashToken } from "@/lib/security";
++
++export const SESSION_COOKIE = "siswa_pos_session";
++const SESSION_DURATION_MS = 1000 * 60 * 60 * 12;
++
++export type SessionUser = {
++  id: string;
++  email: string;
++  displayName: string;
++  role: Role;
++};
++
++export function sessionExpiry() {
++  return new Date(Date.now() + SESSION_DURATION_MS);
++}
++
++export async function getSessionUser(): Promise<SessionUser | null> {
++  const token = (await cookies()).get(SESSION_COOKIE)?.value;
++  if (!token) return null;
++
++  const session = await prisma.session.findUnique({
++    where: { tokenHash: hashToken(token) },
++    include: { user: true },
++  });
++
++  if (!session || session.expiresAt <= new Date() || !session.user.active) {
++    return null;
++  }
++
++  return {
++    id: session.user.id,
++    email: session.user.email,
++    displayName: session.user.displayName,
++    role: session.user.role,
++  };
++}
++
++export async function requireStaff() {
++  const user = await getSessionUser();
++  if (!user || (user.role !== Role.ADMIN && user.role !== Role.STAFF)) return null;
++  return user;
++}
+diff --git a/src/lib/security.ts b/src/lib/security.ts
+new file mode 100644
+index 0000000..5665b41
+--- /dev/null
++++ b/src/lib/security.ts
+@@ -0,0 +1,35 @@
++import { createHash, randomBytes, scrypt as scryptCallback, timingSafeEqual } from "node:crypto";
++import { promisify } from "node:util";
++
++const scrypt = promisify(scryptCallback);
++const KEY_LENGTH = 64;
++
++export function normalizeTracking(value: string) {
++  return value.trim().toUpperCase().replace(/\s+/g, "");
++}
++
++export function normalizeMatric(value: string) {
++  return value.trim().toUpperCase().replace(/\s+/g, "");
++}
++
++export async function hashPassword(password: string) {
++  const salt = randomBytes(16).toString("hex");
++  const derived = (await scrypt(password, salt, KEY_LENGTH)) as Buffer;
++  return `${salt}:${derived.toString("hex")}`;
++}
++
++export async function verifyPassword(password: string, storedHash: string) {
++  const [salt, key] = storedHash.split(":");
++  if (!salt || !key) return false;
++  const derived = (await scrypt(password, salt, KEY_LENGTH)) as Buffer;
++  const expected = Buffer.from(key, "hex");
++  return expected.length === derived.length && timingSafeEqual(expected, derived);
++}
++
++export function createOpaqueToken() {
++  return randomBytes(32).toString("base64url");
++}
++
++export function hashToken(token: string) {
++  return createHash("sha256").update(token).digest("hex");
++}
+diff --git a/src/lib/staff-parcels.ts b/src/lib/staff-parcels.ts
+new file mode 100644
+index 0000000..1b5e9b5
+--- /dev/null
++++ b/src/lib/staff-parcels.ts
+@@ -0,0 +1,29 @@
++import { prisma } from "@/lib/prisma";
++
++export type StaffParcelSummary = {
++  id: string;
++  trackingNo: string;
++  courier: string;
++  status: string;
++  receivedAt: string;
++  student: string;
++  matricSuffix: string;
++};
++
++export async function getRecentStaffParcels(): Promise<StaffParcelSummary[]> {
++  const parcels = await prisma.parcel.findMany({
++    orderBy: { receivedAt: "desc" },
++    take: 20,
++    include: { student: { select: { displayName: true, matricNo: true } } },
++  });
++
++  return parcels.map((parcel) => ({
++    id: parcel.id,
++    trackingNo: parcel.trackingNo,
++    courier: parcel.courier,
++    status: parcel.status,
++    receivedAt: parcel.receivedAt.toISOString(),
++    student: parcel.student.displayName,
++    matricSuffix: parcel.student.matricNo.slice(-4),
++  }));
++}
+-- 
+2.47.3
+
