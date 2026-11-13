@@ -24,7 +24,7 @@ spec:
         runAsGroup: 1001
       containers:
         - name: web
-          image: docker.io/library/siswa-pos:eb676f97ab38
+          image: docker.io/library/siswa-pos:ops-mvp-542b741
           imagePullPolicy: Never
           ports:
             - name: http
