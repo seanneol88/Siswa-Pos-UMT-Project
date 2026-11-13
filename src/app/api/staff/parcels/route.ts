@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { ParcelEventType, ParcelStatus } from "@/generated/prisma/client";
 import { requireStaff } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { getRecentStaffParcels } from "@/lib/staff-parcels";
+import { getStaffParcels } from "@/lib/staff-data";
 import { normalizeMatric, normalizeTracking } from "@/lib/security";
 import { z } from "zod";
 
@@ -19,7 +19,7 @@ export async function GET() {
   const user = await requireStaff();
   if (!user) return NextResponse.json({ message: "Sign in is required." }, { status: 401 });
 
-  return NextResponse.json({ parcels: await getRecentStaffParcels() });
+  return NextResponse.json({ parcels: await getStaffParcels() });
 }
 
 export async function POST(request: Request) {

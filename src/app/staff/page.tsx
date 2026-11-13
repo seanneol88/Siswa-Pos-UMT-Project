@@ -1,9 +1,13 @@
-import { StaffWorkspace } from "@/components/staff-workspace";
+import { DashboardOverview } from "@/components/dashboard-overview";
+import { StaffAppShell } from "@/components/staff-app-shell";
+import { StaffLogin } from "@/components/staff-login";
 import { getSessionUser } from "@/lib/auth";
-import { getRecentStaffParcels } from "@/lib/staff-parcels";
+import { getDashboardData } from "@/lib/staff-data";
 
 export default async function StaffPage() {
   const user = await getSessionUser();
-  const parcels = user ? await getRecentStaffParcels() : [];
-  return <StaffWorkspace initialUser={user} initialParcels={parcels} />;
+  if (!user) return <StaffLogin />;
+
+  const data = await getDashboardData();
+  return <StaffAppShell user={user}><DashboardOverview {...data} userName={user.displayName} /></StaffAppShell>;
 }
