@@ -11,7 +11,7 @@ FROM dependencies AS builder
 COPY . .
 # Used only for Prisma client generation during image build; runtime uses a Kubernetes secret.
 ENV DATABASE_URL="postgresql://build:build@127.0.0.1:5432/siswa_pos?schema=public"
-RUN npm run db:generate && npm run build
+RUN mkdir -p public && npm run db:generate && npm run build
 
 FROM base AS runner
 ENV NODE_ENV=production
