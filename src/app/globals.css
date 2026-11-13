@@ -202,3 +202,44 @@ button { cursor: pointer; }
   .status-pill { margin-left: 49px; }
   .staff-header { flex-direction: column; }
 }
+
+.field-grid { display: grid; grid-template-columns: 1.6fr 1fr; gap: 12px; }
+.lookup-form label, .staff-login-card label, .register-form label { display: grid; gap: 8px; color: #435249; font-size: 12px; font-weight: 800; }
+.lookup-form input, .staff-login-card input, .register-form input { width: 100%; min-height: 52px; padding: 0 14px; color: var(--ink); background: #f8faf6; border: 1px solid #cbd6cb; border-radius: 10px; outline: none; font-size: 15px; font-weight: 600; }
+.lookup-form input:focus, .staff-login-card input:focus, .register-form input:focus { border-color: var(--pine); box-shadow: 0 0 0 3px rgba(19,92,67,.12); }
+.lookup-submit { width: 100%; min-height: 54px; margin-top: 13px; color: white; background: var(--pine); border: 0; border-radius: 10px; font-size: 13px; font-weight: 800; }
+.lookup-submit:hover:not(:disabled), .staff-login-card button:hover, .register-form button:hover { background: var(--pine-deep); }
+.lookup-submit:disabled { opacity: .66; cursor: wait; }
+.status-pill.processing { color: #67581a; background: #fff0b7; }
+.status-pill.collected { color: #526259; background: #e7ece7; }
+.status-pill.exception, .status-pill.unclaimed { color: var(--danger); background: #ffe0d9; }
+
+.staff-loading { display: grid; min-height: 100vh; place-items: center; color: var(--pine); background: var(--paper); font-weight: 800; }
+.staff-login-shell { display: grid; grid-template-rows: auto 1fr; min-height: 100vh; padding: 28px clamp(24px, 5vw, 88px); background: linear-gradient(120deg, #f6f8f4 48%, #dff2df 48%); }
+.staff-login-shell > .brand { align-self: start; }
+.staff-login-card { width: min(100%, 450px); align-self: center; justify-self: center; padding: 34px; background: white; border: 1px solid var(--line); border-radius: 24px 24px 4px 24px; box-shadow: 20px 24px 0 rgba(19,92,67,.12); }
+.staff-login-card h1 { margin: 0; font-size: 39px; letter-spacing: -.06em; }
+.staff-login-card > p:not(.eyebrow):not(.login-note) { margin: 14px 0 24px; color: var(--muted); font-size: 14px; line-height: 1.55; }
+.staff-login-card form { display: grid; gap: 14px; }
+.staff-login-card button, .register-form button { min-height: 50px; margin-top: 3px; color: white; background: var(--pine); border: 0; border-radius: 10px; font-size: 13px; font-weight: 800; }
+.login-note { margin: 21px 0 0; color: var(--muted); font-size: 11px; line-height: 1.55; }
+.login-note code { color: var(--pine); font-size: 10px; }
+.form-error, .form-success { margin: 0; padding: 10px 12px; border-radius: 8px; font-size: 12px; line-height: 1.45; }
+.form-error { color: #8c3127; background: #ffe2dd; }
+.form-success { color: #155a41; background: var(--mint); }
+.sign-out { width: 100%; margin-top: 20px; padding: 10px; color: #cde8d2; background: transparent; border: 1px solid rgba(255,255,255,.22); border-radius: 8px; font-size: 12px; font-weight: 700; }
+.sign-out:hover { color: var(--pine-deep); background: var(--leaf); border-color: var(--leaf); }
+.register-panel { margin-top: 30px; padding: 24px; background: #edf5ed; border: 1px solid #c2ddc6; border-radius: 16px 16px 2px 16px; }
+.register-panel h2 { margin: 0; font-size: 21px; letter-spacing: -.04em; }
+.register-panel > div > p { margin: 7px 0 19px; color: #557261; font-size: 12px; }
+.register-form { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+.register-form label:last-of-type { grid-column: 1 / -1; }
+.register-form button { grid-column: 1 / -1; max-width: 180px; }
+.empty-table { padding: 22px 0 2px; margin: 0; color: var(--muted); font-size: 13px; }
+
+@media (max-width: 700px) {
+  .field-grid, .register-form { grid-template-columns: 1fr; }
+  .register-form label:last-of-type, .register-form button { grid-column: auto; }
+  .staff-login-shell { padding: 24px; background: #f6f8f4; }
+  .staff-login-card { padding: 26px; box-shadow: 10px 14px 0 rgba(19,92,67,.1); }
+}

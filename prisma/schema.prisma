@@ -34,6 +34,7 @@ model User {
   id                 String        @id @default(uuid())
   email              String        @unique
   displayName        String
+  passwordHash       String
   role               Role          @default(STAFF)
   active             Boolean       @default(true)
   createdAt          DateTime      @default(now())
@@ -41,6 +42,18 @@ model User {
   registeredParcels  Parcel[]      @relation("RegisteredBy")
   recordedEvents     ParcelEvent[] @relation("EventActor")
   completedClaims    Collection[]  @relation("CollectedBy")
+  sessions           Session[]
+}
+
+model Session {
+  id        String   @id @default(uuid())
+  tokenHash String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt])
 }
 
 model Student {
@@ -58,7 +71,7 @@ model Parcel {
   id             String        @id @default(uuid())
   trackingNo     String        @unique
   courier        String
-  status         ParcelStatus @default(PROCESSING)
+  status         ParcelStatus  @default(PROCESSING)
   receivedAt     DateTime      @default(now())
   conditionNote  String?
   staffNote      String?
@@ -77,13 +90,13 @@ model Parcel {
 }
 
 model ClaimToken {
-  id        String      @id @default(uuid())
-  tokenHash String      @unique
-  issuedAt  DateTime    @default(now())
-  expiresAt DateTime
-  revokedAt DateTime?
-  parcelId  String
-  parcel    Parcel      @relation(fields: [parcelId], references: [id], onDelete: Cascade)
+  id         String      @id @default(uuid())
+  tokenHash  String      @unique
+  issuedAt   DateTime    @default(now())
+  expiresAt  DateTime
+  revokedAt  DateTime?
+  parcelId   String
+  parcel     Parcel      @relation(fields: [parcelId], references: [id], onDelete: Cascade)
   collection Collection?
 
   @@index([parcelId, expiresAt])
@@ -104,14 +117,14 @@ model Collection {
 }
 
 model ParcelEvent {
-  id          String          @id @default(uuid())
-  parcelId    String
-  actorId     String?
-  eventType   ParcelEventType
-  occurredAt  DateTime        @default(now())
-  notes       String?
-  parcel      Parcel          @relation(fields: [parcelId], references: [id], onDelete: Cascade)
-  actor       User?           @relation("EventActor", fields: [actorId], references: [id], onDelete: SetNull)
+  id         String          @id @default(uuid())
+  parcelId   String
+  actorId    String?
+  eventType  ParcelEventType
+  occurredAt DateTime        @default(now())
+  notes      String?
+  parcel     Parcel          @relation(fields: [parcelId], references: [id], onDelete: Cascade)
+  actor      User?           @relation("EventActor", fields: [actorId], references: [id], onDelete: SetNull)
 
   @@index([parcelId, occurredAt])
 }

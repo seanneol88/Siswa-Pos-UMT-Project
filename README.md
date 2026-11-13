@@ -16,8 +16,9 @@ Siswa Pos is a full-stack student-parcel management prototype. It is designed to
 ## What exists in this first foundation
 
 - Public product landing page
-- Student demo lookup at `/student` using the fictional tracking number `SPX-2026-0001`
-- Staff-dashboard interface mock-up at `/staff`
+- Database-backed student lookup at `/student` using a tracking number and final four fictional matric digits
+- Demo staff/admin sign-in, session handling, protected parcel list, and parcel-registration API at `/staff`
+- Seed script for strictly fictional users and records; local passwords are required at runtime and are never committed
 - Health endpoint at `/api/health`
 - PostgreSQL/Prisma data model for users, students, parcels, QR claims, collections and audit events
 - Docker, CI and Kubernetes deployment foundations
@@ -43,6 +44,7 @@ npm run build
 npm run db:generate
 npm run db:migrate
 npm run db:deploy
+npm run db:seed
 ```
 
 ## Before a public deployment
