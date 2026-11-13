@@ -11,6 +11,9 @@ if (!connectionString) throw new Error("DATABASE_URL is required.");
 if (!adminPassword || !staffPassword) {
   throw new Error("Set DEMO_ADMIN_PASSWORD and DEMO_STAFF_PASSWORD locally before seeding demo accounts.");
 }
+if (adminPassword.length < 12 || staffPassword.length < 12) {
+  throw new Error("Demo passwords must each be at least 12 characters long.");
+}
 
 const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString }) });
 

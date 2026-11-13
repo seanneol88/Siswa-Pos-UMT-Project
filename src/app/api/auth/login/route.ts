@@ -6,7 +6,7 @@ import { createOpaqueToken, hashToken, verifyPassword } from "@/lib/security";
 
 const loginInput = z.object({
   email: z.string().trim().email().max(254).transform((value) => value.toLowerCase()),
-  password: z.string().min(1).max(256),
+  password: z.string().min(12).max(256),
 });
 
 export async function POST(request: Request) {
