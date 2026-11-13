@@ -1,0 +1,117 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  ADMIN
+  STAFF
+}
+
+enum ParcelStatus {
+  PROCESSING
+  READY
+  COLLECTED
+  EXCEPTION
+  UNCLAIMED
+}
+
+enum ParcelEventType {
+  REGISTERED
+  STATUS_CHANGED
+  CLAIM_ISSUED
+  CLAIM_REGENERATED
+  COLLECTED
+  EXCEPTION_RECORDED
+  NOTE_ADDED
+}
+
+model User {
+  id                 String        @id @default(uuid())
+  email              String        @unique
+  displayName        String
+  role               Role          @default(STAFF)
+  active             Boolean       @default(true)
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+  registeredParcels  Parcel[]      @relation("RegisteredBy")
+  recordedEvents     ParcelEvent[] @relation("EventActor")
+  completedClaims    Collection[]  @relation("CollectedBy")
+}
+
+model Student {
+  id                  String       @id @default(uuid())
+  matricNo            String       @unique
+  displayName         String
+  college             String?
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
+  parcels             Parcel[]
+  verifiedCollections Collection[] @relation("VerifiedStudent")
+}
+
+model Parcel {
+  id             String        @id @default(uuid())
+  trackingNo     String        @unique
+  courier        String
+  status         ParcelStatus @default(PROCESSING)
+  receivedAt     DateTime      @default(now())
+  conditionNote  String?
+  staffNote      String?
+  studentId      String
+  registeredById String
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  student        Student       @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  registeredBy   User          @relation("RegisteredBy", fields: [registeredById], references: [id], onDelete: Restrict)
+  claimTokens    ClaimToken[]
+  collection     Collection?
+  events         ParcelEvent[]
+
+  @@index([studentId, status])
+  @@index([status, receivedAt])
+}
+
+model ClaimToken {
+  id        String      @id @default(uuid())
+  tokenHash String      @unique
+  issuedAt  DateTime    @default(now())
+  expiresAt DateTime
+  revokedAt DateTime?
+  parcelId  String
+  parcel    Parcel      @relation(fields: [parcelId], references: [id], onDelete: Cascade)
+  collection Collection?
+
+  @@index([parcelId, expiresAt])
+}
+
+model Collection {
+  id                String      @id @default(uuid())
+  parcelId          String      @unique
+  collectedAt       DateTime    @default(now())
+  collectedById     String
+  verifiedStudentId String
+  claimTokenId      String?     @unique
+  note              String?
+  parcel            Parcel      @relation(fields: [parcelId], references: [id], onDelete: Restrict)
+  collectedBy       User        @relation("CollectedBy", fields: [collectedById], references: [id], onDelete: Restrict)
+  verifiedStudent   Student     @relation("VerifiedStudent", fields: [verifiedStudentId], references: [id], onDelete: Restrict)
+  claimToken        ClaimToken? @relation(fields: [claimTokenId], references: [id], onDelete: SetNull)
+}
+
+model ParcelEvent {
+  id          String          @id @default(uuid())
+  parcelId    String
+  actorId     String?
+  eventType   ParcelEventType
+  occurredAt  DateTime        @default(now())
+  notes       String?
+  parcel      Parcel          @relation(fields: [parcelId], references: [id], onDelete: Cascade)
+  actor       User?           @relation("EventActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([parcelId, occurredAt])
+}

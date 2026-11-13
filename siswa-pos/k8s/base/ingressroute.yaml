@@ -1,0 +1,14 @@
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: siswa-pos-web
+  namespace: siswa-pos
+spec:
+  entryPoints:
+    - web
+  routes:
+    - kind: Rule
+      match: Host(`siswapos.app`) || Host(`www.siswapos.app`)
+      services:
+        - name: siswa-pos-web
+          port: 80

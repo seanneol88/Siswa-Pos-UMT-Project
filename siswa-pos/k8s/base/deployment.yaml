@@ -1,0 +1,53 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: siswa-pos-web
+  namespace: siswa-pos
+  labels:
+    app.kubernetes.io/name: siswa-pos-web
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: siswa-pos-web
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: siswa-pos-web
+    spec:
+      containers:
+        - name: web
+          image: ghcr.io/REPLACE_WITH_GITHUB_OWNER/siswa-pos:REPLACE_WITH_IMMUTABLE_TAG
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 3000
+          env:
+            - name: NODE_ENV
+              value: production
+            - name: NEXT_PUBLIC_APP_URL
+              value: https://siswapos.app
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: siswa-pos-runtime
+                  key: DATABASE_URL
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 20
