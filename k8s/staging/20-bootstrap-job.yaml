@@ -1,0 +1,45 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: siswa-pos-bootstrap-eb676f97ab38
+  namespace: siswa-pos
+  labels:
+    app.kubernetes.io/name: siswa-pos-bootstrap
+    app.kubernetes.io/version: "eb676f97ab38"
+spec:
+  backoffLimit: 2
+  ttlSecondsAfterFinished: 3600
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: siswa-pos-bootstrap
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: migrate-and-seed
+          image: docker.io/library/siswa-pos-builder:eb676f97ab38
+          imagePullPolicy: Never
+          command: ["sh", "-lc", "npm run db:deploy && npm run db:seed"]
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: siswa-pos-runtime
+                  key: DATABASE_URL
+            - name: DEMO_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: siswa-pos-runtime
+                  key: DEMO_ADMIN_PASSWORD
+            - name: DEMO_STAFF_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: siswa-pos-runtime
+                  key: DEMO_STAFF_PASSWORD
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 750m
+              memory: 768Mi

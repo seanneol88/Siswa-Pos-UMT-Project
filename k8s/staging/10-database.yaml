@@ -1,0 +1,84 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: siswa-pos-postgres
+  namespace: siswa-pos
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 2Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: siswa-pos-db
+  namespace: siswa-pos
+  labels:
+    app.kubernetes.io/name: siswa-pos-db
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: siswa-pos-db
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: siswa-pos-db
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: postgres
+              containerPort: 5432
+          env:
+            - name: POSTGRES_DB
+              value: siswa_pos
+            - name: POSTGRES_USER
+              value: siswa_pos
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: siswa-pos-runtime
+                  key: POSTGRES_PASSWORD
+          volumeMounts:
+            - name: database
+              mountPath: /var/lib/postgresql/data
+          readinessProbe:
+            exec:
+              command: ["sh", "-c", "pg_isready -U siswa_pos -d siswa_pos"]
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          livenessProbe:
+            exec:
+              command: ["sh", "-c", "pg_isready -U siswa_pos -d siswa_pos"]
+            initialDelaySeconds: 15
+            periodSeconds: 15
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+      volumes:
+        - name: database
+          persistentVolumeClaim:
+            claimName: siswa-pos-postgres
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: siswa-pos-db
+  namespace: siswa-pos
+spec:
+  selector:
+    app.kubernetes.io/name: siswa-pos-db
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: postgres
