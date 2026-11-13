@@ -1,11 +1,11 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: siswa-pos-bootstrap-eb676f97ab38
+  name: siswa-pos-bootstrap-d6806d7
   namespace: siswa-pos
   labels:
     app.kubernetes.io/name: siswa-pos-bootstrap
-    app.kubernetes.io/version: "eb676f97ab38"
+    app.kubernetes.io/version: "d6806d7"
 spec:
   backoffLimit: 2
   ttlSecondsAfterFinished: 3600
@@ -17,7 +17,7 @@ spec:
       restartPolicy: OnFailure
       containers:
         - name: migrate-and-seed
-          image: docker.io/library/siswa-pos-builder:eb676f97ab38
+          image: docker.io/library/siswa-pos-builder:d6806d7
           imagePullPolicy: Never
           command: ["sh", "-lc", "npm run db:deploy && npm run db:seed"]
           env:

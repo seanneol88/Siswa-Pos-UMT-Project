@@ -5,7 +5,7 @@ metadata:
   namespace: siswa-pos
   labels:
     app.kubernetes.io/name: siswa-pos-web
-    app.kubernetes.io/version: "eb676f97ab38"
+    app.kubernetes.io/version: "d6806d7"
 spec:
   replicas: 1
   selector:
@@ -15,7 +15,7 @@ spec:
     metadata:
       labels:
         app.kubernetes.io/name: siswa-pos-web
-        app.kubernetes.io/version: "eb676f97ab38"
+        app.kubernetes.io/version: "d6806d7"
     spec:
       automountServiceAccountToken: false
       securityContext:
@@ -24,7 +24,7 @@ spec:
         runAsGroup: 1001
       containers:
         - name: web
-          image: docker.io/library/siswa-pos:ops-mvp-542b741
+          image: docker.io/library/siswa-pos:landing-d6806d7
           imagePullPolicy: Never
           ports:
             - name: http
