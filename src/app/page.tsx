@@ -1,26 +1,5 @@
 import Link from "next/link";
 
-const workflow = [
-  {
-    number: "01",
-    title: "Receive with context",
-    description: "Record the tracking number, recipient, courier and parcel condition when it arrives.",
-    icon: "scan",
-  },
-  {
-    number: "02",
-    title: "Give students clarity",
-    description: "A limited tracking and matric-suffix check shows whether a parcel is ready.",
-    icon: "bell",
-  },
-  {
-    number: "03",
-    title: "Close every handover",
-    description: "A short-lived QR claim and staff record make each collection accountable.",
-    icon: "check",
-  },
-];
-
 function ParcelMark() {
   return (
     <svg aria-hidden="true" className="parcel-mark" viewBox="0 0 56 56" fill="none">
@@ -29,16 +8,6 @@ function ParcelMark() {
       <path d="m19 14.1 17.8 10.2" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
     </svg>
   );
-}
-
-function WorkflowIcon({ type }: { type: string }) {
-  if (type === "scan") {
-    return <svg viewBox="0 0 28 28" fill="none" aria-hidden="true"><path d="M5 10V6.8C5 5.8 5.8 5 6.8 5H10M18 5h3.2c1 0 1.8.8 1.8 1.8V10M23 18v3.2c0 1-.8 1.8-1.8 1.8H18M10 23H6.8C5.8 23 5 22.2 5 21.2V18M9 11v6M12 10v8M15 11v6M18 10v8" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" /></svg>;
-  }
-  if (type === "bell") {
-    return <svg viewBox="0 0 28 28" fill="none" aria-hidden="true"><path d="M7.5 18.5h13l-1.6-2.2v-4.5a4.9 4.9 0 0 0-9.8 0v4.5l-1.6 2.2ZM12 21a2.3 2.3 0 0 0 4 0" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>;
-  }
-  return <svg viewBox="0 0 28 28" fill="none" aria-hidden="true"><circle cx="14" cy="14" r="9" stroke="currentColor" strokeWidth="1.8" /><path d="m10 14.1 2.6 2.6 5.5-5.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>;
 }
 
 function TinyArrow() {
@@ -55,8 +24,6 @@ export default function Home() {
             <span>Siswa <strong>Pos</strong></span>
           </Link>
           <div className="nav-links">
-            <a href="#workflow">Workflow</a>
-            <a href="#engineering">Engineering</a>
             <Link href="/staff">Staff workspace</Link>
             <Link className="nav-cta" href="/student">Check a parcel <span>→</span></Link>
           </div>
@@ -71,7 +38,7 @@ export default function Home() {
             </p>
             <div className="hero-actions">
               <Link className="button button-primary" href="/student">Check demo parcel <span>→</span></Link>
-              <a className="button button-quiet" href="#workflow">See how it works <span>↓</span></a>
+              <Link className="button button-quiet" href="/staff">Open staff workspace <span>↗</span></Link>
             </div>
             <div className="hero-assurances" aria-label="Prototype attributes">
               <span><i>✓</i> Student-first status check</span>
@@ -132,50 +99,6 @@ export default function Home() {
       <section className="proof-strip" aria-label="Core prototype capabilities">
         <p>Designed to show</p>
         <div><span>Full-stack workflows</span><b>✦</b><span>Secure QR claims</span><b>✦</b><span>Operational audit trail</span><b>✦</b><span>DevOps delivery</span></div>
-      </section>
-
-      <section className="section workflow-section" id="workflow">
-        <div className="section-heading split-heading">
-          <div><p className="eyebrow"><span /> From intake to handover</p><h2>One calm flow for<br />a busy parcel desk.</h2></div>
-          <p>A small number of meaningful actions replaces a disconnected, paper-heavy collection process.</p>
-        </div>
-        <div className="workflow-list">
-          {workflow.map((item) => (
-            <article className="workflow-card" key={item.number}>
-              <div className="workflow-card-top"><span className="workflow-number">{item.number}</span><span className="workflow-icon"><WorkflowIcon type={item.icon} /></span></div>
-              <h3>{item.title}</h3>
-              <p>{item.description}</p>
-              <span className="workflow-line" />
-            </article>
-          ))}
-        </div>
-      </section>
-
-      <section className="section prototype-section" id="engineering">
-        <div className="architecture-card">
-          <div className="architecture-copy">
-            <p className="eyebrow light"><span /> Built beyond the interface</p>
-            <h2>A working product,<br />delivered like one.</h2>
-            <p>
-              This portfolio project joins a Next.js application with a real PostgreSQL data layer and a deliberately documented deployment path.
-            </p>
-            <a className="architecture-link" href="https://github.com/seanneol88/Siswa-Pos-UMT-Project" target="_blank" rel="noreferrer">Explore the project source <TinyArrow /></a>
-          </div>
-          <div className="architecture-map" aria-label="Technology delivery path">
-            <div className="map-node app"><small>Application</small><strong>Next.js <span>+</span> TypeScript</strong></div>
-            <div className="map-node data"><small>Data layer</small><strong>PostgreSQL <span>+</span> Prisma</strong></div>
-            <div className="map-node delivery"><small>Delivery</small><strong>Docker <span>→</span> Kubernetes</strong></div>
-            <div className="map-node edge"><small>Edge &amp; operations</small><strong>Cloudflare <span>+</span> Uptime Kuma</strong></div>
-            <span className="map-connector one" aria-hidden="true" /><span className="map-connector two" aria-hidden="true" /><span className="map-connector three" aria-hidden="true" />
-          </div>
-        </div>
-      </section>
-
-      <section className="section visit-section">
-        <p className="eyebrow"><span /> See the student view</p>
-        <h2>A clearer answer<br />than “please wait.”</h2>
-        <p>Try the limited, privacy-aware parcel status lookup using fictional demo data.</p>
-        <Link className="button button-primary" href="/student">Open demo parcel check <span>→</span></Link>
       </section>
 
       <footer className="site-footer">
